@@ -1,0 +1,28 @@
+{
+  "doc_id": "f0c5eabf-4d02-4c33-b2d3-3a875204192e",
+  "title": "Oracle Cloud VMware Solution",
+  "source_file": "F:\\知识库\\爬取的解决方案\\vmware_pdfs\\Oracle_Cloud_VMware_Solution_Resources.pdf",
+  "file_type": "pdf",
+  "doc_type": "spec_sheet",
+  "status": "cleaned",
+  "created_at": "2026-04-20T11:41:55.163341",
+  "content": "[第1页]\nOracle Cloud VMware Solution\nResources\n来源: https://www.vmware.com/solutions/partner-managed-services/oracle-cloud/resources\nRead the accessibility statement or contact us with accessibility-related questions.\nSkip to main content\nLogin\nCloud Services Console\nBroadcom Support\nPartner Portal\nVMware Solutions\nPartner-Managed Services\nOracle Cloud VMware Solution\nVMware Oracle Cloud Resources\nOracle Cloud VMware Solution Resources\nExplore technical documentation, reports, trial, communities and more.\nTRY HANDS-ON LAB\nWATCH THE VIDEO (1:40)\n31 Results\nShow Filters\nAnalyst Reports\nBlogs\nCase Studies\nDemo Videos\nHands-on Labs\nInfographics\nPricing\nReference Architectures\nSolution Briefs\nTechnical Documentation\nTechnical Paper\nSort By\n\n[第2页]\nCategory\nA-Z\nZ-A\nAnalyst Reports\nPerformance Standards\nBlogs\nAnnouncing the Oracle Cloud VMware Solution Spring 2022 Release\nFirst principles: L2 network virtualization for lift and shift\nSet Up a Hybrid Cloud with Oracle Cloud VMware Solution\nCase Studies\nThe NRMA leads the way for cloud-powered telephony with Oracle and VMware\nDemo Videos\nOracle Cloud VMware Solution Demo (10:17)\nHands-on Labs\nMigrate and Run VMware Workloads to Oracle Cloud VMware Solution Hands-on\nLab\nProtecting VMware Workloads on Oracle Cloud VMware Solution Using VMware Site\nRecovery Manager\nInfographics\nInfographic: Economic Value of Oracle Cloud VMware Solution\nOracle Cloud VMware Solution: Infographic for Cloud Migration\nPricing\nOracle Cloud VMware Solution Pricing\nReference Architectures\nRed Hat OpenShift Container Platform 4.12 on Oracle Cloud VMware Solution\nVMware Cloud Well-Architected Framework for Oracle Cloud VMware Solution:\nShared Responsibility Model\nSolution Briefs\nAccelerate your cloud journey with Oracle Communications products certified on\nVMware Telco Cloud\nOracle Cloud VMware Solution FAQ\nOracle Cloud VMware Solution: Solution Brief for Cloud Migration\nSolution Brief: Veeam Data Protection for Oracle Cloud VMware Solution\n\n[第3页]\nSolution Overview: Oracle Cloud VMware Solution\nTanzu Standard on Oracle Cloud VMware Solution\nVMware Site Recovery Manager on Oracle Cloud VMware Solution\nTechnical Documentation\nConnect VMware Resources and Oracle Cloud\nDeploy VMware SDDC to Oracle Cloud\nDisaster Recovery with Oracle Cloud VMware Solution\nIDC White Paper: Painless Cloud Migration and Maximizing Payback for Workloads\nOracle Cloud VMware Solution Poster\nOracle Cloud VMware Solution User Guide\nSet Up a Hybrid OCVS SDDC Between an On-Premises SDDC and the Cloud\nVMware HCX Documentation\nTechnical Paper\nConfigure Conditional DNS forwarding between OCI and AD Domain\nReady to Get Started?\nCONTACT SALES\nSave the Date for VMware Explore\nSave the Date for VMware Explore 2026\nLEARN MORE\nCookies\nCookie Notice.\nAllow All\nRequired Only\nCookies Settings\nPrivacy Preference Center\nPrivacy Preference Center\nYour Privacy\nStrictly Necessary Cookies\nFunctional Cookies\nPerformance Cookies\nTargeting Cookies\n\n[第4页]\nYour Privacy\nusually directly identify you, but it can give you a more personalized web experience.\nCookie Policy\nPrivacy Policy\nStrictly Necessary Cookies\nAlways Active\nFunctional Cookies\nFunctional Cookies\nPerformance Cookies\nPerformance Cookies\nTargeting Cookies\nTargeting Cookies\nallow these cookies, you will experience less targeted advertising.\n\n[第5页]\nBack Button\nCookie List\nFilter Button\nConsent\nlabel\nlabel\nApply\nCancel\nConfirm My Choices\nRequired Only\nAllow All",
+  "metadata": {
+    "key_values": {
+      "ud VMware Solution\nResources\n来源": "https://www.vmware.com/solutions/partner-managed-services/oracle-cloud/resources",
+      "g 2022 Release\nFirst principles": "L2 network virtualization for lift and shift",
+      "anager\nInfographics\nInfographic": "Economic Value of Oracle Cloud VMware Solution",
+      "Oracle Cloud VMware Solution": "Infographic for Cloud Migration",
+      "or Oracle Cloud VMware Solution": "Shared Responsibility Model",
+      "AQ\nOracle Cloud VMware Solution": "Solution Brief for Cloud Migration",
+      "Solution Brief": "Veeam Data Protection for Oracle Cloud VMware Solution",
+      "Solution Overview": "Oracle Cloud VMware Solution",
+      "VMware Solution\nIDC White Paper": "Painless Cloud Migration and Maximizing Payback for Workloads"
+    },
+    "model": "Oracle",
+    "pdf_type": "web_export"
+  },
+  "warnings": [
+    "自动检测 PDF 类型: web_export"
+  ]
+}

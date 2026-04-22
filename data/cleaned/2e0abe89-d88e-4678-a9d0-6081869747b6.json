@@ -1,0 +1,16 @@
+{
+  "doc_id": "2e0abe89-d88e-4678-a9d0-6081869747b6",
+  "title": "桌面运维常见问题解决办法③",
+  "source_file": "F:\\知识库\\爬取的解决方案\\CSDN_Spider\\运维知识_6.pdf",
+  "file_type": "pdf",
+  "doc_type": "article",
+  "status": "cleaned",
+  "created_at": "2026-04-20T11:41:24.027945",
+  "content": "[第1页]\n桌面运维常见问题解决办法③\n本文介绍了如何消除Windows [产品: BitLocker磁盘上的黄色警示标志]，详细步骤包括通过本地组策略关闭BitLocker的附加身份验证，并使用CMD命令进\n行解密。同时，针对安装VMware显示Microsoft runtime DLL失败的问题，提出了解决方案，即安装缺少的运行库。\n桌面运维常见问题解决办法③\n1、计算机\n磁盘旁黄色警示标志消除|[产品: BitLocker关闭方法]\nWindows\n[产品: BitLocker驱动器加密通过加密Windows操作系统卷上存储的所有数据可以更好地保护计算机中的数据]，并帮助确保计算机即使在无人参与、丢\n或被盗的情况下也不会被篡改。\n初次使用BitLocker\n需要启用”启动时附加身份验证“服务\n①打开本地组策略\n的方法是在**”运行“窗口（win+R）中输入gpedit.msc\n**\n②”启动时需要附加身份验证\n“在本地组策略——”计算机配置“——“管理模板”——”Windows组件“ ——”[产品: BitLocker]“——”操作系统驱动器“\n行设置\n双击”启动时需要附加身份验证“选项，将默认的”未配置“选项切换到”已启用“选项。接着勾选下面的”没有兼容的tpm时允许BitLocker“选项。至此，\n们就可以在电脑上选择一个盘进行加密了，所以我们要先开启解密才可以解密。\n×\n\n[第2页]\n硬件极客集结令，黑客松等你组队\nbuilderX智能硬件赛道招募中，IoT/机器人/可穿戴全品类参赛，大厂评审+投资人对接",
+  "metadata": {
+    "pdf_type": "community_leadgen"
+  },
+  "warnings": [
+    "自动检测 PDF 类型: community_leadgen"
+  ]
+}

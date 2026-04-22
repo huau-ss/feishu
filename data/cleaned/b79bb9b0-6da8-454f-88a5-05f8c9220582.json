@@ -1,0 +1,39 @@
+{
+  "doc_id": "b79bb9b0-6da8-454f-88a5-05f8c9220582",
+  "title": "运维管理规范",
+  "source_file": "F:\\知识库\\爬取的解决方案\\CSDN_Spider\\运维_1775792058_83.pdf",
+  "file_type": "pdf",
+  "doc_type": "spec_sheet",
+  "status": "cleaned",
+  "created_at": "2026-04-20T11:40:48.516151",
+  "content": "[第1页]\n运维管理规范\n魔乐社区文章已被社区收录\n加入社区\n本文档详述了公司运维的规范化和自动化流程，包括目录管理、jenkins应用、jumpserver管理和Nginx配置等规范，旨在提升运维效率，确保系统\n稳定运行。目录管理规定了各功能组件的部署目录和权限；jenkins应用规范涵盖使用流程、命名规则及备份策略；jumpserver管理规范涉及主机命名、… 前言\n本规范结合公司当前运维水平，以“先规范化，再自动化；边自动化，边标准化为理念，实现标准化和自动化能力的交替上升，持续对外输出适合公司的运维 术和能力。\n规范文档编写遵循简单清晰，直观展示的原则，让阅读人员在最短的时间内即可明白文档内容。\n本文档组织架构采用树状结构的多级目录来展示，格式要求如下。\n目录\n前言... 1\n1.      目的... 2\n2.      规范... 2\n目录管理规范... 2\n1.      目的... 2\n2.      规范... 2\n平台服务... 3\njenkins应用规范... 3\n1、目的... 3\n2、规范... 3\njumpserver管理规范... 5\n1.      目的... 5\n2.      规范... 6\n系统应用服务... 7\nNginx配置规范... 7\n1．目的... 7\nlinux组件专栏收录该内容\n29 篇文章\n订阅专栏\n×\n[第2页]\n2．规范... 7\n1.  目的\n统一运维人员日常行为规范，养成良好的项目部署规范习惯，让运维工作井井有条。 1.  规范 按照规范的结构进行日常工作 目录管理规范 1.  目的\n统一规划服务器目录，以便接入自动化运维平台和平时运维工作。\n1.  规范\n功\n能\n组件\n部署目录\n属主\n备注\n公\n共\n组\n件\n日志\n/data/logs/\nroot\n脚本\n/data/scripts/\nroot\n备份\n/data/backup/\nroot\n应用软件\n/usr/local/xxxx\nroot\n源码安装包\n/usr/local/src/\nroot\n基\n础\n组\n件\ntomcat\n/data/web\nroot\n前端\n/data/Webfront\nroot\n平台服务\njenkins应用规范\n网址：http://xxxx.xxxx.cn\n流程：登录-直接输入：登录者用户名拼音，首次登录需要修改密码\n1、目的\njenkins应用过程中注意事项和规范\n2、规范\n2.1、jenkins主目录\n192.168.2.252:/root/.jenkins\n2.2、jenkins结合ansible\n1、ansible-playbook目录\n192.168.2.252:/etc/ansible/\n2.3、jenkins备份目录\n192.168.2.252:/root/.jenkins/backup 2.4、shell相关\njenkins内jobs跟执行shell相关的第一行必须加#!/bin/bash\n2.5、jenkins job命名规范\n\n## 第一部分，按环境区分：\n第一部分，按环境区分：\n×\n[第3页]\n测试环境，以test开头；生产环境，以prod开头\n如：prod-api\n-xxxxxx-webapps-all\n\n## 第二部分，按项目区分：\n第二部分，按项目区分：\n前端站点为VUE标识\n如：prod-vue\n-xxxx-manage\n接口站点以api标识\n如：​prod-api-xxxx-webapps-all​\n\n## 第三部分，按功能名称区分\n第三部分，按功能名称区分\n如：soft_install\n[A1]\n2.6、jenkins 部署接口api项目规范\n1. 全局变量\nsource_file：源路径(需要引用的数据路径)\ndestination_file：目标路径(需要传送的数据路径)\ndestination_ip：目标IP(需要传送的目标服务器IP) 2．部署目录\n/data/web/项目名称-地区/webapp-地区/ROOT/WEB-INF 如：\n青岛地区： /data/web/xxxx-qd/webapp-qd/ROOT/WEB-INF\n2.7、jenkins部署前端vue规范\n1．全局变量\n1. source_file：源路径(需要引用的数据路径)\n2. destination_file：目标路径(需要传送的数据路径)\n3. destination_ip：目标IP(需要传送的目标服务器IP) 2．部署目录\n/data/ WebFront /common/\n如：\n青岛地区xxx： /data/WebFront/common\njumpserver管理规范\n1.  目的\n为了方便使用和管理，使用人员首先要统一登录到这台服务器，然后再登录到目标设备进行维护和操作。 1.  规范 2.1 主机名命名规范\n跳板机新增资产时，主机命名规范如下：\n功能+ip，如：git-192.168.2.252\n若服务器是为功能分地区，规范如下：\n功能+地区+ip，如：供数-青岛-192.168.2.252\n2.2 安全规则\n危险动作：rm *|reboot|shutdown|init *|poweroff * × [第4页]\n轻量应用服务器+Qwen “小龙虾”一直在线，稳定输出\n成本更低，提供稳定公网访问能力，服务可持续运行，随时随地都能连接使用 广告 2.3 使用流程 2.4 使用规范 1. 网页登录\n网址：http://xxxx.xxxx.cn\n流程：登录-会话管理-Web终端-点击有权限的机器进入\n1. X-shell登录\n地址：xxx.xxxx.cn\n端口：xxxx\n流程：登录-直接输入：登录者用户名拼音，首次登录需要修改密码\n系统应用服务\nNginx配置规范\n1．目的\nnginx配置文件规范化\n2．规范\n2.1、配置文件命名规则\nserver域配置以独立配置文件存放conf.d/，以域名命名为文件名\n如jn.xxxx.net域名的配置文件为jn.xxxx.net.conf 2.2、配置文件缩进 配置文件缩进统一为四个空格 2.3、注释\n配置文件内不得出现大范围注释和无效注释。若有注释的需求，则以备份的方式呈现，先把配置文件备份，然后将注释内容删除，备份命名规则为\njn.xxxx.net.conf.bak.20211108并放到当前bak目录下 2.4、日志存档和命名\n存放目录：/data/logs/nginx/\n命名规则：以域名命名，并制定日志类型，以jn.xxxx.net站为例，日志命名为​jn.xxxxx.net.log​ ×",
+  "metadata": {
+    "key_values": {
+      "bfront\nroot\n平台服务\njenkins应用规范\n网址": "http://xxxx.xxxx.cn",
+      "流程": "登录-直接输入：登录者用户名拼音，首次登录需要修改密码",
+      "按环境区分": "第一部分，按环境区分：",
+      "以prod开头\n如": "prod-api",
+      "按项目区分": "第二部分，按项目区分：",
+      "前端站点为VUE标识\n如": "prod-vue",
+      "manage\n接口站点以api标识\n如": "​prod-api-xxxx-webapps-all​",
+      "按功能名称区分\n如": "soft_install",
+      "file": "目标路径(需要传送的数据路径)",
+      "ip": "目标IP(需要传送的目标服务器IP) 2．部署目录",
+      "INF 如": "青岛地区： /data/web/xxxx-qd/webapp-qd/ROOT/WEB-INF",
+      "主机命名规范如下": "功能+ip，如：git-192.168.2.252",
+      "规范如下": "功能+地区+ip，如：供数-青岛-192.168.2.252",
+      "安全规则\n危险动作": "rm *|reboot|shutdown|init *|poweroff * × [第4页]",
+      "网页登录\n网址": "http://xxxx.xxxx.cn",
+      "shell登录\n地址": "xxx.xxxx.cn",
+      "端口": "xxxx",
+      "日志存档和命名\n存放目录": "/data/logs/nginx/",
+      "命名规则": "以域名命名，并制定日志类型，以jn.xxxx.net站为例，日志命名为​jn.xxxxx.net.log​ ×",
+      "reboot": "shutdown|init *|poweroff * × [第4页]"
+    },
+    "model": "Nginx",
+    "pdf_type": "marketing_whitepaper"
+  },
+  "warnings": [
+    "自动检测 PDF 类型: marketing_whitepaper"
+  ]
+}

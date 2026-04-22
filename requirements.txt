@@ -1,0 +1,48 @@
+# 本地 RAG Demo 依赖
+
+# Web 框架
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+streamlit>=1.30.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# HTTP 客户端
+httpx>=0.27.0
+requests>=2.31.0
+
+# 文档解析
+pymupdf>=1.23.0       # PDF
+python-docx>=1.1.0    # Word
+openpyxl>=3.1.2       # Excel
+python-pptx>=0.6.23   # PowerPoint
+beautifulsoup4>=4.12.0 # HTML
+lxml>=5.1.0           # XML/HTML 解析
+
+# 向量数据库
+qdrant-client>=1.7.0  # Qdrant
+chromadb>=0.4.22      # ChromaDB (可选)
+
+# Embedding & Reranker
+FlagEmbedding>=1.2.10  # BGE Reranker
+
+# 外部大模型 (可选)
+# anthropic>=0.18.0   # Claude
+# openai>=1.10.0       # OpenAI
+
+# MySQL 数据库
+pymysql>=1.1.0
+sqlalchemy>=2.0.0
+
+# Redis (可选，用于 Celery)
+redis>=5.0.0
+celery>=5.3.0
+
+# 工具
+python-multipart>=0.0.6
+aiofiles>=23.0.0
+
+# 开发工具
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+tiktoken>=0.7.0

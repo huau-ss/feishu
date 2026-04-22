@@ -1,0 +1,12 @@
+{
+  "doc_id": "4941f619-6111-4c4b-80eb-62413e854c25",
+  "title": "![](https://docs.netapp.com/common/2/images/notification-icons.svg)",
+  "source_file": "F:\\知识库\\爬取的解决方案\\netapp\\netapp_ontap_clean_docs\\remove-cors-configuration.md",
+  "file_type": "md",
+  "doc_type": "article",
+  "status": "cleaned",
+  "created_at": "2026-04-20T11:41:39.958195",
+  "content": "# Remove CORS configuration before reverting from ONTAP 9.16.1![](https://docs.netapp.com/common/2/images/notification-icons.svg)The requested article is not available. Either it doesn't apply to this version of the product or the relevant information is organized differently in this version of the docs. You can search, browse, or go back to the other version.![](https://docs.netapp.com/common/2/images/dismiss.svg)# Remove CORS configuration before reverting from ONTAP 9.16.101/16/2025\nContributors\n[![netapp-aherbin](https://avatars.githubusercontent.com/u/38955266?v=4)](https://github.com/netapp-aherbin)![](https://docs.netapp.com/common/2/images/discuss-sm.svg)Suggest changes\n![](https://docs.netapp.com/common/2/images/dropdown-arrow.svg)\n![](https://docs.netapp.com/common/2/images/dropdown-arrow.svg)* [Create a GitHub issue](https://github.com/NetAppDocs/ontap/issues/new?template=new-from-page.yml&page-url=https://docs.netapp.com/us-en/ontap/revert/remove-cors-configuration.html&page-title=Remove CORS configuration before reverting from ONTAP 9.16.1)\n* [Send us an email](javascript:netapp_mailto())![](https://docs.netapp.com/common/2/images/pdf-icon.png)PDFs![](https://docs.netapp.com/common/2/images/dropdown-arrow.svg)* [![](https://docs.netapp.com/common/2/images/pdf-icon.png)PDF of this doc site](/us-en/ontap/pdfs/fullsite-sidebar/ONTAP_9_documentation.pdf)[![](https://docs.netapp.com/common/2/images/pdf-zip.png)```\nCollection of separate PDF docs\n```](#)# Creating your file...This may take a few minutes. Thanks for your patience.CancelYour file is readyOKIf you are using Cross-Origin Resource Sharing (CORS) to access ONTAP S3 buckets, you must remove it before you revert from ONTAP 9.16.1.Learn more about [reverting ONTAP clusters with using CORS](../s3-config/cors-integration.html#upgrading-and-reverting).",
+  "metadata": {},
+  "warnings": []
+}
