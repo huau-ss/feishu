@@ -206,6 +206,295 @@ class FeishuBot:
         tags_filter = {"tags": {"$in": scope}}
         return tags_filter
 
+    def _handle_kb_command(self, msg: FeishuMessage) -> Optional[BotResponse]:
+        """处理知识库管理命令"""
+        content = msg.content.strip()
+
+        # 获取员工信息
+        employee = self.employee_manager.get_by_feishu_id(msg.sender_id)
+        if not employee:
+            return None
+
+        # 启用个人知识库
+        if content.startswith("启用个人知识库") or content.startswith("开启赛博员工"):
+            try:
+                from feishu.employee_manager import EmployeeManager
+                manager = EmployeeManager()
+                current_meta = employee.metadata_json or {}
+                current_meta["use_personal_kb"] = True
+                manager.update(employee.id, metadata_json=current_meta)
+                return BotResponse(
+                    content="已为您启用个人知识库功能！\n\n"
+                            "现在我可以：\n"
+                            "• 记住您的偏好和工作背景\n"
+                            "• 从您的对话中学习\n"
+                            "• 提供更个性化的回答\n\n"
+                            "发送「帮助」查看可用命令",
+                    skill_name="",
+                    employee_name=employee.name or "",
+                )
+            except Exception as e:
+                logger.error(f"Failed to enable personal KB: {e}")
+                return BotResponse(content=f"启用失败: {str(e)}", skill_name="", employee_name=employee.name or "")
+
+        # 禁用个人知识库
+        if content.startswith("禁用个人知识库") or content.startswith("关闭赛博员工"):
+            try:
+                from feishu.employee_manager import EmployeeManager
+                manager = EmployeeManager()
+                current_meta = employee.metadata_json or {}
+                current_meta["use_personal_kb"] = False
+                manager.update(employee.id, metadata_json=current_meta)
+                return BotResponse(content="已关闭个人知识库功能。", skill_name="", employee_name=employee.name or "")
+            except Exception as e:
+                return BotResponse(content=f"操作失败: {str(e)}", skill_name="", employee_name=employee.name or "")
+
+        # 检查是否启用了个人知识库
+        use_personal_kb = employee.metadata_json.get("use_personal_kb", False)
+        if not use_personal_kb:
+            return None
+
+        # 创建笔记命令
+        if content.startswith("创建笔记") or content.startswith("新建笔记"):
+            return self._cmd_create_note(msg, employee)
+
+        # 查看笔记列表
+        if content.startswith("查看笔记") or content.startswith("我的笔记") or content == "笔记列表":
+            return self._cmd_list_notes(msg, employee)
+
+        # 搜索笔记
+        if content.startswith("搜索笔记") or content.startswith("查找笔记"):
+            return self._cmd_search_notes(msg, employee)
+
+        # 删除笔记
+        if content.startswith("删除笔记"):
+            return self._cmd_delete_note(msg, employee)
+
+        # 查看知识图谱
+        if content == "我的知识图谱" or content == "知识图谱":
+            return self._cmd_show_graph(msg, employee)
+
+        # 查看记忆
+        if content == "我的记忆" or content == "查看记忆":
+            return self._cmd_show_memories(msg, employee)
+
+        # 帮助命令
+        if content == "帮助" or content == "help":
+            return self._cmd_help(employee)
+
+        return None
+
+    def _cmd_create_note(self, msg: FeishuMessage, employee) -> BotResponse:
+        """创建笔记"""
+        content = msg.content.strip()
+        title = ""
+        note_content = ""
+        tags = []
+
+        lines = content.split("\n")
+        for line in lines[1:]:
+            line = line.strip()
+            if line.startswith("标题:"):
+                title = line[3:].strip()
+            elif line.startswith("内容:"):
+                note_content = line[3:].strip()
+            elif line.startswith("标签:"):
+                tags = [t.strip() for t in line[3:].split(",")]
+
+        if not title:
+            return BotResponse(
+                content="请告诉我笔记的标题和内容：\n\n格式：\n创建笔记\n标题: 我的笔记标题\n内容: 笔记内容...",
+                skill_name="", employee_name=employee.name or "",
+            )
+
+        if not note_content:
+            return BotResponse(
+                content=f"笔记标题: **{title}**\n\n请告诉我笔记内容：",
+                skill_name="", employee_name=employee.name or "",
+            )
+
+        try:
+            from core.personal_knowledge import PersonalNoteManager
+            manager = PersonalNoteManager()
+            manager.upsert_note(
+                employee_id=employee.id,
+                file_path=f"personal/{employee.id}/{title}.md",
+                file_name=f"{title}.md",
+                title=title, content=note_content, tags=tags,
+            )
+            return BotResponse(
+                content=f"笔记已保存！\n\n**{title}**\n{note_content[:200]}{'...' if len(note_content) > 200 else ''}",
+                skill_name="", employee_name=employee.name or "",
+            )
+        except Exception as e:
+            logger.error(f"Failed to create note: {e}")
+            return BotResponse(content=f"保存笔记失败: {str(e)}", skill_name="", employee_name=employee.name or "")
+
+    def _cmd_list_notes(self, msg: FeishuMessage, employee) -> BotResponse:
+        """列出笔记"""
+        try:
+            from database import get_db_session, PersonalNoteModel
+            from sqlalchemy import select
+
+            with get_db_session() as session:
+                stmt = select(PersonalNoteModel).where(
+                    PersonalNoteModel.employee_id == employee.id
+                ).order_by(PersonalNoteModel.updated_at.desc()).limit(20)
+                notes = session.execute(stmt).scalars().all()
+
+            if not notes:
+                return BotResponse(content="您还没有创建任何笔记。发送「创建笔记」开始记录！", skill_name="", employee_name=employee.name or "")
+
+            lines = [f"**您的笔记** (共 {len(notes)} 篇)\n"]
+            for i, note in enumerate(notes, 1):
+                tags_str = f" [{', '.join(note.tags)}]" if note.tags else ""
+                lines.append(f"{i}. **{note.title}**{tags_str}")
+
+            lines.append("\n回复「查看笔记 + 序号」查看详情")
+            return BotResponse(content="\n".join(lines), skill_name="", employee_name=employee.name or "")
+        except Exception as e:
+            logger.error(f"Failed to list notes: {e}")
+            return BotResponse(content=f"获取笔记列表失败: {str(e)}", skill_name="", employee_name=employee.name or "")
+
+    def _cmd_search_notes(self, msg: FeishuMessage, employee) -> BotResponse:
+        """搜索笔记"""
+        content = msg.content.strip()
+        keyword = content.replace("搜索笔记", "").replace("查找笔记", "").strip()
+
+        if not keyword:
+            return BotResponse(content="请告诉我搜索关键词：\n格式：搜索笔记 + 关键词", skill_name="", employee_name=employee.name or "")
+
+        try:
+            from database import get_db_session, PersonalNoteModel
+            from sqlalchemy import select
+
+            with get_db_session() as session:
+                stmt = select(PersonalNoteModel).where(
+                    PersonalNoteModel.employee_id == employee.id
+                ).order_by(PersonalNoteModel.updated_at.desc())
+                all_notes = session.execute(stmt).scalars().all()
+
+            results = [n for n in all_notes if keyword.lower() in n.title.lower() or keyword.lower() in n.content.lower()]
+
+            if not results:
+                return BotResponse(content=f"没有找到包含「{keyword}」的笔记", skill_name="", employee_name=employee.name or "")
+
+            lines = [f"找到 {len(results)} 篇相关笔记:\n"]
+            for i, note in enumerate(results[:5], 1):
+                preview = note.content[:50] + "..." if len(note.content) > 50 else note.content
+                lines.append(f"{i}. **{note.title}**\n   {preview}")
+
+            return BotResponse(content="\n".join(lines), skill_name="", employee_name=employee.name or "")
+        except Exception as e:
+            return BotResponse(content=f"搜索失败: {str(e)}", skill_name="", employee_name=employee.name or "")
+
+    def _cmd_delete_note(self, msg: FeishuMessage, employee) -> BotResponse:
+        """删除笔记"""
+        content = msg.content.strip()
+        note_title = content.replace("删除笔记", "").strip()
+
+        if not note_title:
+            return BotResponse(content="请告诉我删除哪篇笔记：\n格式：删除笔记 + 标题", skill_name="", employee_name=employee.name or "")
+
+        try:
+            from database import get_db_session, PersonalNoteModel
+            from sqlalchemy import select, and_
+
+            with get_db_session() as session:
+                stmt = select(PersonalNoteModel).where(
+                    and_(PersonalNoteModel.employee_id == employee.id, PersonalNoteModel.title == note_title)
+                )
+                note = session.execute(stmt).scalar_one_or_none()
+                if not note:
+                    return BotResponse(content=f"没有找到笔记「{note_title}」", skill_name="", employee_name=employee.name or "")
+                session.delete(note)
+
+            return BotResponse(content=f"已删除笔记「{note_title}」", skill_name="", employee_name=employee.name or "")
+        except Exception as e:
+            return BotResponse(content=f"删除失败: {str(e)}", skill_name="", employee_name=employee.name or "")
+
+    def _cmd_show_graph(self, msg: FeishuMessage, employee) -> BotResponse:
+        """显示知识图谱"""
+        try:
+            from database import get_db_session, PersonalKnowledgeGraphModel
+            from sqlalchemy import select
+
+            with get_db_session() as session:
+                stmt = select(PersonalKnowledgeGraphModel).where(
+                    PersonalKnowledgeGraphModel.employee_id == employee.id
+                ).order_by(PersonalKnowledgeGraphModel.importance_score.desc()).limit(15)
+                entities = session.execute(stmt).scalars().all()
+
+            if not entities:
+                return BotResponse(content="您的知识图谱还是空的。随着对话和笔记的积累，我会帮您构建个人知识图谱。", skill_name="", employee_name=employee.name or "")
+
+            lines = ["**您的知识图谱**\n"]
+            by_type = {}
+            for e in entities:
+                t = e.entity_type or "概念"
+                if t not in by_type:
+                    by_type[t] = []
+                by_type[t].append(e.entity_name)
+
+            for t, names in by_type.items():
+                lines.append(f"\n**{t}**: {', '.join(names[:8])}")
+
+            lines.append(f"\n\n共 {len(entities)} 个概念")
+            return BotResponse(content="\n".join(lines), skill_name="", employee_name=employee.name or "")
+        except Exception as e:
+            return BotResponse(content=f"获取知识图谱失败: {str(e)}", skill_name="", employee_name=employee.name or "")
+
+    def _cmd_show_memories(self, msg: FeishuMessage, employee) -> BotResponse:
+        """显示个人记忆"""
+        try:
+            from database import get_db_session, PersonalMemoryModel
+            from sqlalchemy import select
+
+            with get_db_session() as session:
+                stmt = select(PersonalMemoryModel).where(
+                    PersonalMemoryModel.employee_id == employee.id
+                ).order_by(PersonalMemoryModel.confidence.desc()).limit(10)
+                memories = session.execute(stmt).scalars().all()
+
+            if not memories:
+                return BotResponse(content="您还没有个人记忆。我会从对话中自动学习关于您的信息。", skill_name="", employee_name=employee.name or "")
+
+            lines = ["**关于您的记忆**\n"]
+            by_type = {}
+            for m in memories:
+                t = m.memory_type or "其他"
+                if t not in by_type:
+                    by_type[t] = []
+                by_type[t].append(m.memory_summary or m.memory_content[:50])
+
+            for t, items in by_type.items():
+                lines.append(f"\n**{t}**:")
+                for item in items[:3]:
+                    lines.append(f"• {item}...")
+
+            return BotResponse(content="\n".join(lines), skill_name="", employee_name=employee.name or "")
+        except Exception as e:
+            return BotResponse(content=f"获取记忆失败: {str(e)}", skill_name="", employee_name=employee.name or "")
+
+    def _cmd_help(self, employee) -> BotResponse:
+        """显示帮助"""
+        return BotResponse(
+            content="**赛博员工助手 - 命令列表**\n\n"
+                    "**笔记管理**\n"
+                    "• 创建笔记 - 新建笔记\n"
+                    "• 查看笔记 - 查看笔记列表\n"
+                    "• 搜索笔记 + 关键词 - 搜索笔记\n"
+                    "• 删除笔记 + 标题 - 删除笔记\n\n"
+                    "**知识库**\n"
+                    "• 我的知识图谱 - 查看知识图谱\n"
+                    "• 我的记忆 - 查看个人记忆\n\n"
+                    "**设置**\n"
+                    "• 启用个人知识库 - 开启赛博员工\n"
+                    "• 禁用个人知识库 - 关闭赛博员工\n\n"
+                    "直接问我任何问题，我会结合您的个人知识库回答",
+            skill_name="", employee_name=employee.name or "",
+        )
+
     def handle_message(self, event: Dict) -> Optional[BotResponse]:
         """
         处理飞书消息事件
@@ -242,6 +531,11 @@ class FeishuBot:
 
     def _do_query(self, msg: FeishuMessage) -> BotResponse:
         """执行业务查询"""
+        # 检查是否是对话管理命令
+        command_result = self._handle_kb_command(msg)
+        if command_result:
+            return command_result
+
         start_time = time.time()
 
         employee = self.employee_manager.get_by_feishu_id(msg.sender_id)
@@ -311,6 +605,15 @@ class FeishuBot:
         except Exception as e:
             logger.warning(f"Failed to save to session history: {e}")
 
+        # 赛博员工：从对话中学习
+        if employee and employee.metadata_json.get("use_personal_kb", False):
+            try:
+                from core.personal_rag import CyberEmployeeBuilder
+                cyber_builder = CyberEmployeeBuilder(employee.id)
+                cyber_builder.learn_from_conversation(msg.content, answer)
+            except Exception as e:
+                logger.warning(f"Failed to learn from conversation: {e}")
+
         latency = (time.time() - start_time) * 1000
 
         return BotResponse(
@@ -336,11 +639,17 @@ class FeishuBot:
         from core.rag_engine import RAGResult
         from core.chunker import extract_query_keywords
         from core.skill_templates import SkillProfile, get_skill_template_engine
+        from core.personal_rag import CyberEmployeeBuilder, PersonalRAGConfig
 
         matched_tags: List[str] = []
+        employee_id = employee.id if employee else None
+
+        # 检查是否启用了个人知识库
+        use_personal_kb = employee and employee.metadata_json.get("use_personal_kb", False)
 
         query_keywords = extract_query_keywords(question, max_keywords=5)
 
+        # 1. 检索共享知识库
         retrieved = self.rag_engine.retrieve(question)
         reranked = []
         all_parents = []
@@ -372,52 +681,111 @@ class FeishuBot:
 
         template_engine = get_skill_template_engine()
         base_system_prompt = self.rag_engine.SYSTEM_PROMPT
+
+        # 构建上下文（共享KB + 个人知识库 + 知识图谱）
+        kb_context = ""
+        if all_parents:
+            kb_context = self.rag_engine.build_context(all_parents)
+
+        personal_context = ""
+        personal_has_content = False
+        if use_personal_kb and employee_id:
+            try:
+                cyber_builder = CyberEmployeeBuilder(employee_id)
+                personal_results = cyber_builder.personal_rag.query(question)
+                personal_context = personal_results.get("final_context", "")
+                personal_has_content = bool(personal_results.get("personal_chunks") or
+                                            personal_results.get("graph_entities") or
+                                            personal_results.get("memories"))
+
+                logger.info(
+                    f"Personal KB: {len(personal_results.get('personal_chunks', []))} chunks, "
+                    f"Graph: {len(personal_results.get('graph_entities', []))} entities, "
+                    f"has_content={personal_has_content}"
+                )
+            except Exception as e:
+                logger.warning(f"Personal KB query failed: {e}")
+
+        # 构建系统提示词
         personalized_system = template_engine.build_system_prompt(
             base_system_prompt, skill_profile, query=question
         )
 
-        context = ""
-        if all_parents:
-            context = self.rag_engine.build_context(all_parents)
+        # 如果有赛博员工配置，加入个性化上下文
+        if use_personal_kb and employee_id:
+            try:
+                cyber_builder = CyberEmployeeBuilder(employee_id)
+                profile_prompt = cyber_builder.build_profile_prompt()
+                if profile_prompt:
+                    personalized_system += "\n\n" + profile_prompt
+            except Exception as e:
+                logger.warning(f"Failed to build profile prompt: {e}")
 
         messages = [ChatMessage(role="system", content=personalized_system)]
 
         # 读取对话历史
         if session_id:
             history = self.session_manager.get_history(session_id)
-            for hist in history[-10:]:  # 限制最近10条
+            for hist in history[-10:]:
                 if hist["role"] == "user":
                     messages.append(ChatMessage(role="user", content=hist["content"]))
                 elif hist["role"] == "assistant":
                     messages.append(ChatMessage(role="assistant", content=hist["content"]))
 
-        if context:
+        # 决策：知识库（共享KB 或 个人KB）有内容 → 本地 LLM；都没有 → 公网 LLM
+        shared_has_content = bool(all_parents)
+        from_kb = shared_has_content or personal_has_content
+
+        if from_kb:
+            # 知识库有结果：添加上下文，使用本地 LLM
+            context_parts = []
+            if kb_context:
+                context_parts.append(f"## 共享知识库\n{kb_context}")
+            if personal_context:
+                context_parts.append(f"## 个人知识\n{personal_context}")
+
             messages.append(
                 ChatMessage(
                     role="user",
-                    content=f"参考资料:\n{context}\n\n请根据以上参考资料回答问题。",
+                    content="【参考资料】\n" + "\n\n".join(context_parts) + "\n\n请根据以上参考资料，结合上下文对话历史回答问题。",
                 )
             )
-        messages.append(ChatMessage(role="user", content=question))
+            messages.append(ChatMessage(role="user", content=question))
 
-        active_llm = self.rag_engine.llm_client
-        if not active_llm:
-            active_llm = self.rag_engine.external_llm_client
+            active_llm = self.rag_engine.llm_client
+            if not active_llm:
+                return RAGResult(
+                    answer="LLM 未配置，请联系管理员。",
+                    answer_source="error",
+                    query=question,
+                )
 
-        if not active_llm:
-            return RAGResult(
-                answer="LLM 未配置，请联系管理员。",
-                answer_source="error",
-                query=question,
+            response = active_llm.chat(
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
             )
+            answer_source = "knowledge_base"
+        else:
+            # 知识库没有结果：公网大模型兜底
+            messages.append(ChatMessage(role="user", content=question))
 
-        response = active_llm.chat(
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+            external_llm = self.rag_engine.external_llm_client
+            if not external_llm:
+                return RAGResult(
+                    answer="本地知识库和个人笔记中未找到相关内容，同时未配置公网大模型，无法回答您的问题。",
+                    answer_source="none",
+                    query=question,
+                )
 
-        from_kb = bool(retrieved)
+            response = external_llm.chat(
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            answer_source = "external_llm"
+            logger.info("KB empty, falling back to external LLM")
+
         sources = [
             {
                 "title": chunk.metadata.get("title", "未知"),
@@ -430,7 +798,7 @@ class FeishuBot:
 
         return RAGResult(
             answer=response.content,
-            answer_source="knowledge_base" if from_kb else "external_llm",
+            answer_source=answer_source,
             sources=sources,
             query=question,
             retrieved_chunks=len(retrieved),
@@ -438,7 +806,7 @@ class FeishuBot:
             used_chunks=len(all_parents),
             from_knowledge_base=from_kb,
             latency_ms=0.0,
-            model=active_llm.model,
+            model=response.model,
             metadata={"matched_tags": matched_tags},
         )
 

@@ -199,3 +199,215 @@ async def list_feishu_sessions(limit: int = Query(50, le=200)):
                 "updated_at": s.updated_at,
             })
         return {"sessions": sessions}
+
+
+# ==================== Obsidian 个人知识库 API ====================
+
+@router.get("/employees/{employee_id}/vaults")
+async def list_employee_vaults(employee_id: str):
+    """获取员工的所有 Obsidian Vault"""
+    try:
+        from core.personal_knowledge import ObsidianVaultManager
+        manager = ObsidianVaultManager()
+        vaults = manager.get_by_employee(employee_id)
+        return {
+            "vaults": [
+                {
+                    "id": v.id,
+                    "vault_name": v.vault_name,
+                    "vault_path": v.vault_path,
+                    "is_active": v.is_active,
+                    "last_sync_at": v.last_sync_at,
+                    "auto_sync": v.auto_sync,
+                }
+                for v in vaults
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to list vaults: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/employees/{employee_id}/vaults")
+async def create_vault(employee_id: str, request: Dict[str, Any]):
+    """创建 Obsidian Vault 配置"""
+    try:
+        from core.personal_knowledge import ObsidianVaultManager
+        manager = ObsidianVaultManager()
+        vault = manager.create_vault(
+            employee_id=employee_id,
+            vault_path=request["vault_path"],
+            vault_name=request.get("vault_name", ""),
+        )
+        return {"success": True, "id": vault.id}
+    except Exception as e:
+        logger.error(f"Failed to create vault: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/vaults/{vault_id}/sync")
+async def sync_vault(vault_id: str):
+    """手动同步 Vault"""
+    try:
+        from core.personal_knowledge import ObsidianVaultManager, ObsidianSyncer
+        from database import get_db_session, ObsidianVaultModel
+        from sqlalchemy import select
+
+        with get_db_session() as session:
+            stmt = select(ObsidianVaultModel).where(ObsidianVaultModel.id == vault_id)
+            vault = session.execute(stmt).scalar_one_or_none()
+            if not vault:
+                raise HTTPException(status_code=404, detail="Vault not found")
+            session.expunge(vault)
+
+        syncer = ObsidianSyncer(vault)
+        result = syncer.sync()
+
+        vault_manager = ObsidianVaultManager()
+        vault_manager.update_last_sync(vault_id)
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to sync vault: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/employees/{employee_id}/memories")
+async def get_employee_memories(employee_id: str, memory_type: str = None):
+    """获取员工个人记忆"""
+    try:
+        from core.personal_knowledge import PersonalMemoryManager
+        manager = PersonalMemoryManager(employee_id)
+        memories = manager.get_memories(memory_type=memory_type)
+        return {"memories": memories}
+    except Exception as e:
+        logger.error(f"Failed to get memories: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/employees/{employee_id}/memories")
+async def add_memory(employee_id: str, request: Dict[str, Any]):
+    """添加个人记忆"""
+    try:
+        from core.personal_knowledge import PersonalMemoryManager
+        manager = PersonalMemoryManager(employee_id)
+        memory = manager.add_memory(
+            memory_type=request.get("memory_type", "preference"),
+            memory_key=request["memory_key"],
+            content=request["content"],
+            summary=request.get("summary", ""),
+            confidence=float(request.get("confidence", 0.8)),
+        )
+        return {"success": True, "id": memory.id}
+    except Exception as e:
+        logger.error(f"Failed to add memory: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/employees/{employee_id}/knowledge-graph")
+async def get_knowledge_graph(employee_id: str, entity_name: str = None, depth: int = 2):
+    """获取员工知识图谱"""
+    try:
+        from core.personal_knowledge import KnowledgeGraphManager
+
+        if entity_name:
+            manager = KnowledgeGraphManager(employee_id)
+            entities = manager.get_related_entities(employee_id, entity_name, depth=depth)
+            return {"entities": entities}
+        else:
+            from database import get_db_session, PersonalKnowledgeGraphModel
+            from sqlalchemy import select
+
+            with get_db_session() as session:
+                stmt = select(PersonalKnowledgeGraphModel).where(
+                    PersonalKnowledgeGraphModel.employee_id == employee_id
+                ).order_by(
+                    PersonalKnowledgeGraphModel.importance_score.desc()
+                ).limit(100)
+
+                entities = session.execute(stmt).scalars().all()
+                return {
+                    "entities": [
+                        {
+                            "id": e.id,
+                            "name": e.entity_name,
+                            "type": e.entity_type,
+                            "description": e.description,
+                            "tags": e.tags or [],
+                            "importance": e.importance_score,
+                        }
+                        for e in entities
+                    ]
+                }
+    except Exception as e:
+        logger.error(f"Failed to get knowledge graph: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/employees/{employee_id}/notes")
+async def get_employee_notes(
+    employee_id: str,
+    vault_id: str = None,
+    limit: int = Query(50, le=200),
+):
+    """获取员工个人笔记"""
+    try:
+        from database import get_db_session, PersonalNoteModel
+        from sqlalchemy import select
+
+        with get_db_session() as session:
+            stmt = select(PersonalNoteModel).where(
+                PersonalNoteModel.employee_id == employee_id
+            )
+            if vault_id:
+                stmt = stmt.where(PersonalNoteModel.vault_id == vault_id)
+            stmt = stmt.order_by(PersonalNoteModel.last_modified.desc()).limit(limit)
+
+            notes = session.execute(stmt).scalars().all()
+            return {
+                "notes": [
+                    {
+                        "id": n.id,
+                        "title": n.title,
+                        "file_name": n.file_name,
+                        "tags": n.tags or [],
+                        "word_count": n.word_count,
+                        "last_modified": n.last_modified,
+                        "is_processed": n.is_processed,
+                    }
+                    for n in notes
+                ]
+            }
+    except Exception as e:
+        logger.error(f"Failed to get notes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/employees/{employee_id}/personal-kb")
+async def update_personal_kb_setting(employee_id: str, request: Dict[str, Any]):
+    """更新员工个人知识库设置"""
+    try:
+        from feishu.employee_manager import EmployeeManager
+
+        manager = EmployeeManager()
+        metadata = request.get("metadata", {})
+
+        employee = manager.get_by_id(employee_id)
+        if not employee:
+            raise HTTPException(status_code=404, detail="Employee not found")
+
+        current_metadata = employee.metadata_json or {}
+        current_metadata.update(metadata)
+
+        success = manager.update(employee_id, metadata_json=current_metadata)
+        if not success:
+            raise HTTPException(status_code=500, detail="Update failed")
+
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update personal KB setting: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

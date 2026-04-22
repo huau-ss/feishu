@@ -145,6 +145,111 @@ class FeishuSessionModel(Base):
     metadata_json = Column(JSON, default={})
 
 
+class ObsidianVaultModel(Base):
+    """Obsidian Vault 配置表"""
+    __tablename__ = "obsidian_vaults"
+
+    id = Column(String(36), primary_key=True)
+    employee_id = Column(String(36), nullable=False, index=True)
+    vault_path = Column(String(1024), nullable=False)
+    vault_name = Column(String(256), default="")
+    vault_url = Column(String(512), default="")
+    access_token = Column(String(512), default="")
+    is_active = Column(Boolean, default=True)
+    last_sync_at = Column(Float, default=0)
+    sync_interval_minutes = Column(Integer, default=30)
+    auto_sync = Column(Boolean, default=True)
+    include_folders = Column(JSON, default=[])
+    exclude_folders = Column(JSON, default=["node_modules", ".git", ".obsidian"])
+    file_extensions = Column(JSON, default=[".md"])
+    metadata_json = Column(JSON, default={})
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+
+class PersonalKnowledgeGraphModel(Base):
+    """个人知识图谱实体表"""
+    __tablename__ = "personal_knowledge_graph"
+
+    id = Column(String(36), primary_key=True)
+    employee_id = Column(String(36), nullable=False, index=True)
+    entity_type = Column(String(64), default="concept")
+    entity_name = Column(String(512), nullable=False)
+    entity_aliases = Column(JSON, default=[])
+    description = Column(Text, default="")
+    source_note = Column(String(256), default="")
+    importance_score = Column(Float, default=0.5)
+    tags = Column(JSON, default=[])
+    properties_json = Column(JSON, default={})
+    embedding_vector_id = Column(String(128), default="")
+    access_count = Column(Integer, default=0)
+    last_accessed_at = Column(Float, default=0)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+
+class KnowledgeRelationModel(Base):
+    """知识关系表"""
+    __tablename__ = "knowledge_relations"
+
+    id = Column(String(36), primary_key=True)
+    employee_id = Column(String(36), nullable=False, index=True)
+    from_entity_id = Column(String(36), nullable=False, index=True)
+    to_entity_id = Column(String(36), nullable=False, index=True)
+    relation_type = Column(String(128), default="related_to")
+    relation_label = Column(String(256), default="")
+    weight = Column(Float, default=0.5)
+    source_note = Column(String(256), default="")
+    metadata_json = Column(JSON, default={})
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+
+class PersonalNoteModel(Base):
+    """个人笔记表"""
+    __tablename__ = "personal_notes"
+
+    id = Column(String(36), primary_key=True)
+    employee_id = Column(String(36), nullable=False, index=True)
+    vault_id = Column(String(36), nullable=True)
+    file_path = Column(String(1024), nullable=False)
+    file_name = Column(String(256), nullable=False)
+    title = Column(String(512), default="")
+    content = Column(Text, nullable=False)
+    summary = Column(Text, default="")
+    tags = Column(JSON, default=[])
+    links = Column(JSON, default=[])
+    back_links = Column(JSON, default=[])
+    frontmatter_json = Column(JSON, default={})
+    word_count = Column(Integer, default=0)
+    hash_content = Column(String(64), default="")
+    embedding_vector_id = Column(String(128), default="")
+    last_modified = Column(Float, default=0)
+    is_processed = Column(Boolean, default=False)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+
+class PersonalMemoryModel(Base):
+    """员工个人记忆表 - 存储 AI 对员工的理解"""
+    __tablename__ = "personal_memories"
+
+    id = Column(String(36), primary_key=True)
+    employee_id = Column(String(36), nullable=False, index=True)
+    memory_type = Column(String(64), default="preference")
+    memory_key = Column(String(256), nullable=False)
+    memory_content = Column(Text, nullable=False)
+    memory_summary = Column(String(512), default="")
+    confidence = Column(Float, default=0.8)
+    source_messages = Column(JSON, default=[])
+    embedding_vector_id = Column(String(128), default="")
+    access_count = Column(Integer, default=0)
+    is_verified = Column(Boolean, default=False)
+    expires_at = Column(Float, default=0)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+
 _engine = None
 _SessionLocal = None
 

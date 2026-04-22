@@ -1,21 +1,56 @@
-"""
-# 本地 RAG Demo 使用指南
+# 本地 RAG 知识库问答系统
 
-## 功能特性
+基于 FastAPI + 飞书机器人 + RAG 的本地知识库问答系统，支持共享知识库、个人笔记（赛博员工）和公网大模型融合检索。
 
-- 📄 **多格式文档支持**: PDF、Word、Excel、PPT、TXT、Markdown、JSON、YAML、HTML 等
-- 🔍 **多格式差异化清洗**: PDF / TXT / Excel / Word 各自采用独立清洗策略
-- 🏷️ **PDF 三分类智能识别**: 营销白皮书 / 网页导出型 / 社区引流型，自动适配清洗逻辑
-- 🏷️ **自动标签提取**: 分片时自动打标签（运维/部署/产品等），查询时匹配标签精排召回
-- 🏷️ **个性化回答**: 根据匹配的文档标签动态调整回答风格和侧重点
-- 🔍 **父子文档分片**: 保证语义完整性，支持上下文关联
-- 🏆 **向量检索 + Reranker**: 先粗排后精排，提高检索精度
-- 💬 **上下文记忆**: 多轮对话，保留历史上下文
-- 🌐 **外部大模型**: 知识库无答案时自动调用公网 LLM
-- 📚 **文档管理**: 上传、查看、搜索、删除文档
-- 📊 **会话管理**: 创建、切换、删除历史会话
+---
 
-## 快速开始
+## 系统架构
+
+```
+用户提问 (飞书 / Web UI)
+       │
+       ▼
+┌─────────────────────┐
+│  FeishuBot / Web API │
+└──────────┬──────────┘
+           │
+           ▼
+  ┌────────────────────┐
+  │  _query_with_skill │
+  └────────┬───────────┘
+           │
+     ┌─────┴─────┐
+     ▼           ▼
+  共享知识库    个人知识库
+  (Vector DB)   (赛博员工)
+     │           │
+     └─────┬─────┘
+           │ 两者都有内容?
+       ┌───┴───────────────────────┐
+       │ Yes                       │ No
+       ▼                           ▼
+  本地 LLM                    公网 LLM 兜底
+  (海纳一体机)               (DeepSeek / OpenAI / Claude)
+       │                           │
+       └───────────┬───────────────┘
+                   ▼
+            返回答案 + 来源
+```
+
+---
+
+## 查询流程
+
+1. **共享知识库检索** — 从向量数据库（Qdrant）中检索相关文档块
+2. **个人知识库检索** — 从个人笔记、知识图谱、记忆中检索
+3. **决策判断**
+   - 知识库有结果（共享KB **或** 个人KB） → 本地 LLM 基于上下文生成答案
+   - 知识库都没有结果 → 公网大模型兜底，生成独立回答
+4. **赛博员工学习** — 从对话中提取用户偏好，更新个人记忆和知识图谱
+
+---
+
+## 快速启动
 
 ### 1. 安装依赖
 
@@ -23,297 +58,234 @@
 pip install -r requirements.txt
 ```
 
-### 2. 配置 Ollama
+### 2. 配置环境变量（可选，推荐）
 
-确保 Ollama 服务已启动，并拉取所需模型：
+在项目根目录创建 `.env` 文件：
 
 ```bash
-# 启动 Ollama 服务
-ollama serve
-
-# 拉取 Embedding 模型
-ollama pull bge-m3
-
-# 拉取生成模型
-ollama pull qwen3:8b
+# .env 示例
+MYSQL_PASSWORD=your_mysql_password
+EXTERNAL_LLM_API_KEY=your_api_key
+FEISHU_APP_SECRET=your_feishu_secret
 ```
+
+> `.env` 中的值会覆盖 `settings.py` 中的默认值。
 
 ### 3. 启动服务
 
-方式一：使用 Python 启动
-
 ```bash
-# 启动 API 后端（终端 1）
+# 方式一：只启动 API 后端（推荐用于飞书机器人）
 python main.py --api
 
-# 启动 Web UI（终端 2）
+# 方式二：启动 API + Web UI（Streamlit）
+python main.py
+
+# 方式三：只启动 Web UI
 python main.py --ui
+
+# 方式四：快速演示模式
+python main.py --demo
 ```
 
-方式二：直接启动
+默认端口：
+- API: `http://localhost:8001`
+- Web UI: `http://localhost:8501`
 
-```bash
-# API 后端
-python -m uvicorn api.server:app --host 0.0.0.0 --port 8001
-
-# Web UI（另一个终端）
-streamlit run web_app/app.py --server.port 8501
-```
-
-### 4. 访问界面
-
-打开浏览器访问: http://localhost:8501
-
-## 使用流程
-
-### 4.1 上传文档
-
-1. 点击「文档管理」标签页
-2. 选择文件上传或输入目录路径
-3. 等待处理完成
-
-### 4.2 提问
-
-1. 点击「问答」标签页
-2. 输入问题并点击发送
-3. 查看回答和参考来源
-
-### 4.3 查看历史
-
-1. 在左侧边栏查看历史会话
-2. 点击会话可切换
-3. 删除不需要的会话
-
-## API 接口
-
-### 查询
-
-```bash
-curl -X POST http://localhost:8001/query \
-  -H "Content-Type: application/json" \
-  -d '{"question": "你的问题"}'
-```
-
-### 上传文档
-
-```bash
-curl -X POST http://localhost:8001/upload/document \
-  -F "file=@文档路径"
-```
-
-### 搜索
-
-```bash
-curl "http://localhost:8001/search?query=关键词&top_k=10"
-```
+---
 
 ## 配置说明
 
-### 环境变量
+所有配置项集中在 `config/settings.py`，可通过环境变量或 `.env` 文件覆盖。
 
-复制 `.env.example` 为 `.env` 并修改：
+### 数据库
 
-```bash
-cp .env.example .env
-```
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `MYSQL_HOST` | `localhost` | MySQL 主机 |
+| `MYSQL_PORT` | `3306` | MySQL 端口 |
+| `MYSQL_USER` | `root` | MySQL 用户名 |
+| `MYSQL_PASSWORD` | `123456` | MySQL 密码 |
+| `MYSQL_DATABASE` | `rag_knowledge_base` | 数据库名 |
 
-### 主要配置项
+> 首次启动会自动创建所需的表。
 
-| 配置项 | 说明 | 默认值 |
-|--------|------|--------|
-| OLLAMA_BASE_URL | Ollama 服务地址 | http://localhost:11434 |
-| OLLAMA_MODEL | 生成模型 | qwen3:8b |
-| OLLAMA_EMBED_MODEL | Embedding 模型 | bge-m3 |
-| VECTOR_DB_TYPE | 向量数据库类型 | qdrant |
-| TOP_K | 粗排召回数量 | 20 |
-| RERANK_TOP_K | 精排返回数量 | 10 |
-| RERANK_THRESHOLD | 重排得分阈值 | 0.5 |
+### 本地 LLM（Ollama）
 
-### 切换向量数据库
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `OLLAMA_BASE_URL` | `http://localhost:8000` | Ollama 服务地址 |
+| `OLLAMA_MODEL` | `qwen3-vl:4b` | 生成模型名称 |
+| `OLLAMA_EMBED_MODEL` | `bge-m3` | Embedding 模型名称 |
 
-1. **Qdrant** (推荐):
-```python
-VECTOR_DB_TYPE=qdrant
-QDRANT_HOST=localhost
-QDRANT_PORT=6333
-```
+> 仅在未配置海纳数聚一体机时使用。
 
-2. **ChromaDB** (轻量):
-```python
-VECTOR_DB_TYPE=chroma
-```
+### 海纳数聚 AI 一体机（推荐）
 
-3. **本地文件** (开发测试):
-```python
-VECTOR_DB_TYPE=file
-```
+本地部署的一体机提供 LLM、Embedding 和 Reranker 服务。
 
-### 外部大模型
+**大语言模型：**
 
-1. **OpenAI**:
-```python
-EXTERNAL_LLM_PROVIDER=openai
-EXTERNAL_LLM_API_KEY=sk-xxx
-EXTERNAL_LLM_MODEL=gpt-4o-mini
-```
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `HAINAN_LLM_BASE_URL` | `http://192.168.3.86:18051/v1` | LLM API 地址 |
+| `HAINAN_LLM_MODEL` | `qwen3_30b_a3b` | 模型名称 |
+| `HAINAN_LLM_API_KEY` | `""` | API Key（通常留空） |
 
-2. **Claude**:
-```python
-EXTERNAL_LLM_PROVIDER=claude
-EXTERNAL_LLM_API_KEY=sk-ant-xxx
-EXTERNAL_LLM_MODEL=claude-3-5-haiku-20241022
-```
+**向量嵌入模型：**
 
-3. **通义千问**:
-```python
-EXTERNAL_LLM_PROVIDER=dashscope
-DASHSCOPE_API_KEY=sk-xxx
-```
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `HAINAN_EMBED_BASE_URL` | `http://192.168.3.86:6208/v1` | Embedding API 地址 |
+| `HAINAN_EMBED_MODEL` | `bce-embedding-base_v1` | Embedding 模型 |
+| `HAINAN_EMBED_DIM` | `1536` | 向量维度 |
+| `HAINAN_EMBED_API_KEY` | `""` | API Key（通常留空） |
 
-## 多格式差异化清洗
+**重排模型：**
 
-### TXT 清洗规则
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `HAINAN_RERANK_BASE_URL` | `http://192.168.3.86:6006/v1` | Reranker API 地址 |
+| `HAINAN_RERANK_MODEL` | `bce-reranker-base_v1` | Reranker 模型 |
+| `HAINAN_RERANK_API_KEY` | `""` | API Key（通常留空） |
 
-- 提取并规范化头部元数据（标题、作者、日期、版本等）
-- 删除重复段落（出现 3 次以上的段落自动过滤）
-- 删除口语化引导语（"大家好"、"首先"、"OK" 等）
-- 清理格式噪声（多余分隔符、空引用行）
+### 公网大模型（兜底）
 
-### PDF 三分类 + 差异化清洗
+当本地知识库和个人笔记都没有相关内容时，系统自动调用公网大模型。
 
-| 类型 | 特征 | 清洗策略 |
-|------|------|----------|
-| **营销白皮书** | 多栏排版、章节符号【】、多级编号 | 线性重组与语境缝合：拼接孤立短行，恢复文档结构层级 |
-| **网页导出型** | URL、单栏、导航版权信息 | 断句连贯与外围去噪：修复意外截断句子，去除页眉页脚和导航元素 |
-| **社区引流型** | 干货技术词 + 广告引流词并存 | 业务截断与实体格式化：在引流点前截断，技术实体（代码/命令/版本号）规范化保留 |
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `EXTERNAL_LLM_PROVIDER` | `openai` | 提供商：`openai` / `claude` / `dashscope` / `deepseek` |
+| `EXTERNAL_LLM_API_KEY` | `sk-f5e83e1f...` | API Key |
+| `EXTERNAL_LLM_BASE_URL` | `https://api.deepseek.com/v1` | API 地址 |
+| `EXTERNAL_LLM_MODEL` | `deepseek-chat` | 模型名称 |
 
-PDF 类型自动检测，通过文本特征（URL 密度、多级编号、引流关键词）综合评分判断，无需手动指定。
+> 内部使用 OpenAI 兼容格式。DeepSeek、硅基流动、阿里云等 OpenAI 兼容接口均可使用。
 
-### Excel / Word 清洗规则
+### RAG 参数
 
-- 保留表格结构（统一使用 `|` 分隔符）
-- 清理格式符号（多余括号、首尾分隔符）
-- 清理单元格内多余空格
-- 规范化行内空白
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `VECTOR_DIM` | `768` | 向量维度（与 Embedding 模型匹配） |
+| `TOP_K` | `20` | 粗排阶段召回的文档块数量 |
+| `RERANK_TOP_K` | `10` | 精排后返回的文档块数量 |
+| `RERANK_THRESHOLD` | `0.5` | 重排得分阈值，低于此值的块被过滤 |
+| `MAX_CONTEXT_CHUNKS` | `3` | 最终送入 LLM 的最多块数 |
 
-## 文档分片策略
+> `RERANK_THRESHOLD` 可调高以减少幻觉（更严格依赖知识库），调低以增加回答覆盖率。
 
-### 三种文档类型 + 最优分片策略
+### 文档处理
 
-| 文档类型 | 检测特征 | 分片策略 | 设计原则 |
-|----------|---------|---------|---------|
-| **article** | Markdown 标题 `# ## ###` ≥2 | Markdown 标题 + 段落分片 | 保留层级结构，按章节边界切分 |
-| **spreadsheet** | `|` 分隔行占比 >20% | 表格结构分片 | 不破坏行列结构，保留表头上下文 |
-| **notes** | 短段落 + 标题关键词 | 自然段落分片 | 保留语义连贯性，不过度切割 |
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `CHUNK_SIZE` | `800` | 子文档块大小（字符） |
+| `CHUNK_OVERLAP` | `100` | 子文档块重叠大小 |
+| `PARENT_CHUNK_SIZE` | `2000` | 父文档块大小（用于检索去重） |
+| `MAX_FILE_SIZE` | `50MB` | 最大上传文件大小 |
 
-### 自动标签提取
+### 向量数据库
 
-每个分片在创建时自动提取主题标签（最多 5 个）：
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `VECTOR_DB_TYPE` | `qdrant` | 向量数据库类型：`qdrant` / `chroma` |
+| `QDRANT_HOST` | `localhost` | Qdrant 主机 |
+| `QDRANT_PORT` | `6333` | Qdrant HTTP 端口 |
+| `QDRANT_COLLECTION` | `knowledge_base` | 集合名称 |
 
-| 标签 | 触发关键词 |
-|------|-----------|
-| 运维 | 监控、部署、上线、Docker、K8s、Jenkins、日志、告警 |
-| 部署 | 集群、节点、副本、环境、Docker 镜像、Helm、Ingress |
-| 产品 | 功能、特性、规格、型号、版本、发布说明、定价 |
-| 开发 | 代码、API、SDK、Git、CI/CD、框架、算法 |
-| 安全 | 加密、认证、鉴权、权限、WAF、漏洞 |
-| 数据库 | MySQL、Redis、索引、事务、慢查询、分库分表 |
-| 网络 | TCP、HTTP、负载均衡、网关、CDN、VPC |
-| 云服务 | AWS、阿里云、ECS、S3、Serverless、容器服务 |
-| AI | LLM、Embedding、RAG、知识库、Prompt、微调 |
-| 财务 | 账单、计费、成本、预算、发票、报价 |
-| 支持 | 工单、故障申报、服务台、SLA、响应时间 |
+### 服务器
 
-### 个性化召回与回答
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `API_HOST` | `0.0.0.0` | API 监听地址 |
+| `API_PORT` | `8001` | API 端口 |
+| `STREAMLIT_PORT` | `8501` | Web UI 端口 |
 
-1. **查询关键字提取** — 从用户问题中提取关键词和匹配的领域标签
-2. **Tag-Boosted 重排** — Reranker 分数 + 关键字/标签匹配分数加权，优先召回领域匹配的片段
-3. **个性化提示词** — 根据匹配的标签动态调整回答风格（运维重步骤、开发重原理、产品重规格等）
+### 飞书 Bot
 
-### 父子文档架构
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `FEISHU_APP_ID` | `cli_a96db55728e45cc4` | 飞书应用 App ID |
+| `FEISHU_APP_SECRET` | `DNfJyNRIDPyUj...` | 飞书应用 App Secret |
+| `FEISHU_VERIFICATION_TOKEN` | `""` | 飞书事件验证 Token |
+| `FEISHU_WEBHOOK_PATH` | `/feishu/webhook` | Webhook 路径 |
+| `FEISHU_ENABLE_STREAMING` | `False` | 是否启用流式回复 |
+| `FEISHU_RATE_LIMIT_PER_MINUTE` | `20` | 每分钟最大请求数 |
 
-所有分片类型均保留父子文档双层结构：
+---
 
-- **父文档**：包含完整上下文，合并多个子块，检索时用于去重和提供完整背景
-- **子文档**：语义完整的最小单元，检索和 Reranker 的实际处理对象
-- 子文档通过 `parent_id` 引用父文档，形成完整的上下文链
+## 飞书机器人命令
+
+发送以下命令给机器人：
+
+| 命令 | 说明 |
+|------|------|
+| `开启赛博员工` / `启用个人知识库` | 启用个人知识库功能 |
+| `关闭赛博员工` / `禁用个人知识库` | 关闭个人知识库功能 |
+| `创建笔记`<br>标题: xxx<br>内容: xxx<br>标签: xxx, xxx | 新建笔记 |
+| `查看笔记` / `我的笔记` | 查看笔记列表 |
+| `搜索笔记 + 关键词` | 搜索笔记 |
+| `删除笔记 + 标题` | 删除笔记 |
+| `我的知识图谱` | 查看知识图谱 |
+| `我的记忆` | 查看个人记忆 |
+| `帮助` / `help` | 查看所有命令 |
+
+---
 
 ## 目录结构
 
 ```
-RAG_New/
-├── api/              # FastAPI 后端
-│   └── server.py     # API 服务
-├── config/           # 配置
-│   └── settings.py   # 配置管理
-├── core/             # 核心模块
-│   ├── chunker.py    # 父子文档分片
-│   ├── embedding.py  # 向量化（支持 Ollama / OpenAI / DashScope）
-│   ├── reranker.py   # 重排序
-│   ├── rag_engine.py # RAG 引擎
-│   └── history_manager.py  # 历史管理
-├── llm/              # 大模型接口
-│   └── llm_client.py # 多模型支持（Ollama / OpenAI / Claude / DashScope）
-├── parsers/          # 文档解析
-│   ├── document_parser.py  # 多格式解析（含 PDF 元数据提取）
-│   └── data_cleaner.py     # 多格式差异化清洗（PDF 三分类 / TXT / Excel / Word）
-├── storage/          # 文档存储
-│   └── document_storage.py # 文档管理
-├── vectorstore/      # 向量存储
-│   └── vector_store.py     # Qdrant / Chroma / 本地文件
-├── web_app/          # Streamlit UI
-│   └── app.py        # Web 界面
-├── data/             # 数据目录
-│   ├── documents/    # 原始文档
-│   ├── cleaned/      # 清洗后文档
-│   ├── vectors/      # 向量数据
-│   └── sessions.json # 会话历史
-├── main.py           # 主入口
-├── requirements.txt  # 依赖
-└── .env.example      # 环境变量示例
+RAG-main/
+├── config/
+│   └── settings.py       # 所有配置项
+├── core/
+│   ├── rag_engine.py     # RAG 核心引擎
+│   ├── chunker.py        # 文档分块策略
+│   ├── embedding.py      # 向量嵌入模型
+│   ├── reranker.py       # 重排模型
+│   ├── personal_knowledge.py   # 个人知识库
+│   ├── personal_rag.py   # 个性化 RAG（赛博员工）
+│   └── skill_templates.py # Skill 个性化模板
+├── database/
+│   └── models.py         # SQLAlchemy 模型
+├── feishu/
+│   ├── bot.py            # 飞书 Bot 核心逻辑
+│   ├── webhook.py        # 飞书 Webhook 路由
+│   ├── client.py         # 飞书 API 客户端
+│   └── employee_manager.py # 员工与 Skill 管理
+├── llm/
+│   └── llm_client.py     # LLM 客户端（Ollama/OpenAI/Claude/DashScope）
+├── parsers/
+│   └── ...               # 文档解析器
+├── storage/
+│   └── ...               # 文档存储
+├── vectorstore/
+│   └── vector_store.py   # 向量数据库接口
+├── api/
+│   └── server.py         # FastAPI 服务入口
+├── web_app/
+│   └── app.py            # Streamlit Web UI
+└── main.py               # 统一入口脚本
 ```
+
+---
 
 ## 常见问题
 
-### Q: Ollama 连接失败
+### Q: 公网大模型没有调用？
 
-确保 Ollama 服务已启动：
-```bash
-ollama serve
-```
+1. 检查 `EXTERNAL_LLM_API_KEY` 是否配置了正确的 API Key
+2. 检查 `EXTERNAL_LLM_BASE_URL` 和 `EXTERNAL_LLM_MODEL` 是否正确
+3. 确认海纳数聚一体机的 `HAINAN_LLM_BASE_URL` 未被误填（会优先于公网 LLM 作为本地 LLM 使用，但不影响公网兜底）
+4. 重启 FastAPI 服务使配置生效
 
-### Q: 文档上传失败
+### Q: 知识库检索没有结果？
 
-检查文件格式是否支持，大小是否超过限制（默认 50MB）。
+1. 确认文档已上传并成功索引（`POST /documents` 查看状态）
+2. 检查向量数据库（Qdrant）是否正常运行
+3. 检查 Embedding 模型是否可用
 
-### Q: 检索结果为空
+### Q: 飞书机器人无响应？
 
-确认文档已成功处理并索引。检查状态是否为 "indexed"。
-
-### Q: 回答质量差
-
-1. 尝试调整 `RERANK_THRESHOLD`（降低阈值可召回更多）
-2. 确认 Embedding 模型与文档语言匹配
-3. 检查文档内容质量
-
-## 开发
-
-### 运行测试
-
-```bash
-pytest tests/
-```
-
-### 代码结构
-
-核心流程：
-1. `parsers/document_parser.py` - 多格式文档解析，提取文本和元数据
-2. `parsers/data_cleaner.py` - 多格式差异化清洗（PDF 三分类 / TXT / Excel / Word）
-3. `core/chunker.py` - 文档类型检测 + 三种分片策略 + 自动标签提取 + 父子文档分片
-4. `core/embedding.py` - 向量化（支持 Ollama / OpenAI / DashScope）
-5. `core/reranker.py` - 重排序
-6. `vectorstore/` - 向量存储（Qdrant / Chroma / 本地文件）
-7. `core/rag_engine.py` - RAG 引擎（含 Tag-Boosted 重排 + 个性化提示词）
-8. `llm/llm_client.py` - 大模型接口（Ollama / OpenAI / Claude / DashScope）
-9. `api/` / `web_app/` - 服务接口
-"""
+1. 确认飞书 Webhook URL 已正确配置在飞书开放平台
+2. 确认飞书应用已启用机器人功能
+3. 检查 `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET` 是否正确
+4. 查看服务端日志中的 `feishu.bot` 相关输出

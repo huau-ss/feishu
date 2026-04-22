@@ -1,6 +1,4 @@
-"""
-飞书模块配置
-"""
+"飞书模块配置"
 
 import os
 from typing import List, Optional
@@ -22,7 +20,7 @@ class FeishuSettings(BaseSettings):
     FEISHU_WEBHOOK_PATH: str = "/feishu/webhook"
     FEISHU_DEFAULT_SKILL_ID: Optional[str] = None
 
-    FEISHU_ENABLE_STREAMING: bool = False
+    FEISHU_ENABLE_STREAMING: bool = True
     FEISHU_MAX_HISTORY_MESSAGES: int = 10
 
     FEISHU_RATE_LIMIT_PER_MINUTE: int = 20

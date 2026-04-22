@@ -24,6 +24,7 @@ from core import get_rag_engine, get_history_manager, get_vector_store, get_docu
 from llm import create_llm_client, ChatMessage
 from feishu.webhook import router as feishu_router
 from feishu.admin_router import router as admin_router
+from api.personal_kb import router as personal_kb_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -102,6 +103,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Feishu Bot initialization skipped: {e}")
 
+    # 初始化 Obsidian 个人知识库表
+    try:
+        from core.personal_knowledge import init_obsidian_tables
+        init_obsidian_tables()
+        logger.info("Obsidian personal knowledge tables initialized")
+    except Exception as e:
+        logger.warning(f"Obsidian tables initialization skipped: {e}")
+
     logger.info("RAG Engine initialized successfully")
 
     yield
@@ -126,6 +135,7 @@ app.add_middleware(
 
 app.include_router(feishu_router)
 app.include_router(admin_router)
+app.include_router(personal_kb_router)
 
 
 class QueryRequest(BaseModel):
