@@ -1,0 +1,78 @@
+#===============================================================================
+# 服务器配置模板
+# 请根据您的实际环境修改以下配置
+#===============================================================================
+
+# ==================== 服务器配置 ====================
+
+# 虚拟机 IP 地址
+SERVER_HOST=192.168.3.100
+
+# SSH 用户名
+SERVER_USER=raguser
+
+# SSH 端口（默认22）
+SERVER_PORT=22
+
+# ==================== NAS 配置 ====================
+
+# NAS IP 地址
+NAS_IP=192.168.x.x
+
+# NAS 挂载类型: nfs 或 smb
+NAS_TYPE=nfs
+
+# NAS 上的路径（NFS）或共享名（SMB）
+NAS_RAW_SOURCE=/volume1/raw
+NAS_CLEANED_SOURCE=/volume1/cleaned
+
+# 虚拟机上的挂载点
+NAS_RAW_MOUNT=/mnt/nas/raw
+NAS_CLEANED_MOUNT=/mnt/nas/cleaned
+
+# SMB 用户名（如果使用 SMB）
+NAS_SMB_USER=admin
+# NAS_SMB_PASS=your_password  # 建议通过交互式输入，不要明文保存
+
+# ==================== 一体机配置 ====================
+
+# 海纳数聚一体机地址
+HAINAN_LLM_BASE_URL=http://192.168.3.86:18051/v1
+HAINAN_LLM_MODEL=qwen3_30b_a3b
+
+HAINAN_EMBED_BASE_URL=http://192.168.3.86:6208/v1
+HAINAN_EMBED_MODEL=bce-embedding-base_v1
+
+HAINAN_RERANK_BASE_URL=http://192.168.3.86:6006/v1
+HAINAN_RERANK_MODEL=bce-reranker-base_v1
+
+# ==================== 清洗配置 ====================
+
+# 并发进程数（建议 CPU 核心数 - 1）
+CLEANING_WORKERS=8
+
+# 批大小
+CLEANING_BATCH_SIZE=20
+
+# 跳过大文件阈值（MB）
+MAX_FILE_SIZE_MB=200
+
+# ==================== 项目配置 ====================
+
+# 项目在服务器上的路径
+PROJECT_DIR=/opt/rag-cleaner
+
+# ==================== 常见问题排查 ====================
+
+# 1. NAS 挂载失败？
+#    - 检查 NAS_IP 是否正确
+#    - 检查网络是否互通: ping $NAS_IP
+#    - 检查 NFS 服务: showmount -e $NAS_IP
+
+# 2. 一体机连接失败？
+#    - 检查网络: ping 192.168.3.86
+#    - 检查端口: telnet 192.168.3.86 18051
+
+# 3. SSH 连接失败？
+#    - 检查 SERVER_HOST 和 SERVER_USER
+#    - 检查 SSH 服务: sudo systemctl status ssh
