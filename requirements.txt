@@ -16,8 +16,10 @@ pymupdf>=1.23.0       # PDF
 python-docx>=1.1.0    # Word
 openpyxl>=3.1.2       # Excel
 python-pptx>=0.6.23   # PowerPoint
-beautifulsoup4>=4.12.0 # HTML
+beautifulsoup4>=4.12.0 # HTML / XML
 lxml>=5.1.0           # XML/HTML 解析
+striprtf>=0.0.17      # RTF 文本提取
+faster-whisper>=1.0.0  # 视频/音频语音转文字（FFmpeg 配合 Whisper）
 
 # 向量数据库
 qdrant-client>=1.7.0  # Qdrant

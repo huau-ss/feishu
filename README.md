@@ -50,6 +50,31 @@
 
 ---
 
+## 支持的文件格式
+
+系统支持以下文件格式的解析、清洗与向量化：
+
+| 格式 | 扩展名 | 说明 |
+|------|--------|------|
+| PDF | `.pdf` | PyMuPDF 文本提取，支持白皮书/网页导出/社区引流三分类清洗 |
+| Word | `.docx`, `.doc` | python-docx 解析段落和表格 |
+| Excel | `.xlsx`, `.xls` | openpyxl 按工作表解析 |
+| PowerPoint | `.pptx`, `.ppt` | python-pptx 按幻灯片解析 |
+| HTML | `.html`, `.htm` | BeautifulSoup 提取正文，移除脚本样式 |
+| 纯文本 | `.txt`, `.md`, `.json`, `.yaml`, `.yml`, `.cfg`, `.conf`, `.log` | 多编码自动识别 |
+| 邮件 | `.eml`, `.msg` | 提取主题、发件人、收件人和正文 |
+| **XML** | `.xml` | XML 标签结构解析，提取元素文本和属性 |
+| **ZIP** | `.zip` | 解压并递归解析内部文本/代码/表格文件 |
+| **CSV** | `.csv` | 表格解析，自动识别分隔符并转为 Markdown 表格 |
+| **RTF** | `.rtf` | 富文本格式解析，移除格式控制符 |
+| **视频/音频** | `.mp4`, `.avi`, `.mov`, `.mkv`, `.flv`, `.wmv`, `.webm`, `.mp3`, `.wav`, `.m4a`, `.flac`, `.ogg` | FFmpeg 提取音频 + Whisper 语音转文字 |
+
+> **视频/音频处理说明**：需安装 FFmpeg（[下载](https://ffmpeg.org/download.html)）和 `faster-whisper`（`pip install faster-whisper`）。支持中英文自动识别，按时间戳分段输出转写文本。
+
+**清洗后文档格式**：所有文件清洗后均以 Markdown 格式保存至 `data/cleaned/` 目录，包含 YAML frontmatter 元数据、基本信息表格、标签及正文。
+
+---
+
 ## 快速启动
 
 ### 1. 安装依赖
@@ -254,9 +279,10 @@ RAG-main/
 ├── llm/
 │   └── llm_client.py     # LLM 客户端（Ollama/OpenAI/Claude/DashScope）
 ├── parsers/
-│   └── ...               # 文档解析器
+│   ├── document_parser.py  # 文档解析器（PDF/Word/Excel/PPT/HTML/XML/ZIP/CSV/RTF/视频）
+│   └── data_cleaner.py     # 数据清洗模块（格式差异化清洗）
 ├── storage/
-│   └── ...               # 文档存储
+│   └── document_storage.py # 文档元数据存储
 ├── vectorstore/
 │   └── vector_store.py   # 向量数据库接口
 ├── api/
@@ -289,3 +315,16 @@ RAG-main/
 2. 确认飞书应用已启用机器人功能
 3. 检查 `FEISHU_APP_ID` 和 `FEISHU_APP_SECRET` 是否正确
 4. 查看服务端日志中的 `feishu.bot` 相关输出
+
+### Q: 视频/音频文件无法处理？
+
+1. 确认已安装 FFmpeg 并添加到系统 PATH（终端运行 `ffmpeg -version` 验证）
+2. 确认已安装 `faster-whisper`（`pip install faster-whisper`）
+3. 检查文件大小是否超过 `MAX_FILE_SIZE` 限制
+4. 确认文件格式受支持（MP4/AVI/MOV/MKV/FLV/WMV/WebM/MP3/WAV/M4A/FLAC/OGG）
+
+### Q: ZIP 文件解压后部分文件未解析？
+
+1. ZIP 内只有文本类文件（TXT/MD/JSON/XML/HTML）会被直接解析
+2. 二进制文件（PDF/DOCX/XLSX/PPTX/RTF）需要通过单独上传处理
+3. 压缩包内代码文件（PY/JS/JAVA/GO/RS/SH/SQL）会截取前 50 行作为摘要

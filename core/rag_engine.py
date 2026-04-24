@@ -309,59 +309,104 @@ class RAGEngine:
         created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         file_type = Path(file_path).suffix.lower().lstrip('.')
 
-        lines = [
-            f"# {clean_result.title}",
-            "",
-            f"**文档ID**: `{doc_id}`",
-            f"**来源文件**: `{file_path}`",
-            f"**文件类型**: `{file_type}`",
-            f"**文档类型**: `{clean_result.doc_type}`",
-            f"**清洗时间**: `{created_at}`",
+        lines = []
+
+        tags = []
+        meta = clean_result.metadata or {}
+        if meta:
+            tags = meta.get("tags", [])
+        merged_tags = tags
+        if metadata and "tags" in metadata:
+            merged_tags = metadata["tags"]
+
+        frontmatter = [
+            "---",
+            f"title: \"{clean_result.title}\"",
+            f"doc_id: \"{doc_id}\"",
+            f"source_file: \"{file_path}\"",
+            f"file_type: \"{file_type}\"",
+            f"doc_type: \"{clean_result.doc_type}\"",
+            f"cleaned_at: \"{created_at}\"",
         ]
+        if merged_tags:
+            tag_str = ", ".join(f'"{t}"' for t in merged_tags)
+            frontmatter.append(f"tags: [{tag_str}]")
+        frontmatter.append("---")
+        lines.extend(frontmatter)
+
+        lines.append("")
+        lines.append(f"# {clean_result.title}")
+        lines.append("")
+
+        lines.append("## 基本信息")
+        lines.append("")
+        lines.append(f"| 字段 | 值 |")
+        lines.append(f"|------|-----|")
+        lines.append(f"| 文档ID | `{doc_id}` |")
+        lines.append(f"| 来源文件 | `{file_path}` |")
+        lines.append(f"| 文件类型 | `{file_type}` |")
+        lines.append(f"| 文档类型 | `{clean_result.doc_type}` |")
+        lines.append(f"| 清洗时间 | `{created_at}` |")
 
         warnings = clean_result.warnings or []
         if warnings:
             lines.append("")
-            lines.append("**清洗警告**:")
+            lines.append("## 清洗警告")
+            lines.append("")
             for w in warnings:
                 lines.append(f"- {w}")
 
-        meta = clean_result.metadata or {}
         if meta:
-            lines.append("")
-            lines.append("**元数据**:")
-            for k, v in meta.items():
-                if k == "key_values" and isinstance(v, dict):
-                    lines.append("")
-                    lines.append("| 字段 | 值 |")
-                    lines.append("|------|-----|")
-                    for kv, vv in v.items():
-                        lines.append(f"| {kv} | {vv} |")
-                elif k == "tables" and isinstance(v, list) and v:
-                    lines.append("")
-                    lines.append("**表格**:")
-                    for tbl in v[:5]:
-                        if isinstance(tbl, list) and tbl:
-                            lines.append("| " + " | ".join(str(c) for c in tbl[0]) + " |")
-                            if len(tbl) > 1:
-                                lines.append("| " + " | ".join("---" for _ in tbl[0]) + " |")
-                            for row in tbl[1:]:
-                                lines.append("| " + " | ".join(str(c) for c in row) + " |")
-                            lines.append("")
-                elif k not in ("tags",):
-                    lines.append(f"- **{k}**: {v}")
-
-            tags = meta.get("tags", [])
-            if tags:
+            key_meta_items = [(k, v) for k, v in meta.items()
+                               if k not in ("key_values", "tables", "tags", "pdf_type", "format", "row_count")]
+            if key_meta_items:
                 lines.append("")
-                lines.append(f"**标签**: {' / '.join(tags)}")
+                lines.append("## 元数据")
+                lines.append("")
+                lines.append("| 字段 | 值 |")
+                lines.append("|------|-----|")
+                for k, v in key_meta_items:
+                    v_str = str(v)[:200]
+                    lines.append(f"| {k} | {v_str} |")
+
+            if "key_values" in meta and isinstance(meta["key_values"], dict) and meta["key_values"]:
+                lines.append("")
+                lines.append("## 关键字段")
+                lines.append("")
+                lines.append("| 字段 | 值 |")
+                lines.append("|------|-----|")
+                for kv, vv in list(meta["key_values"].items())[:30]:
+                    lines.append(f"| {kv} | {vv} |")
+
+            if "tables" in meta and isinstance(meta["tables"], list) and meta["tables"]:
+                lines.append("")
+                lines.append("## 表格数据")
+                for i, tbl in enumerate(meta["tables"][:5]):
+                    if isinstance(tbl, list) and tbl:
+                        lines.append("")
+                        lines.append(f"### 表格 {i + 1}")
+                        lines.append("")
+                        if tbl[0]:
+                            lines.append("| " + " | ".join(str(c) for c in tbl[0]) + " |")
+                            lines.append("| " + " | ".join("---" for _ in tbl[0]) + " |")
+                        for row in tbl[1:]:
+                            lines.append("| " + " | ".join(str(c) for c in row) + " |")
+
+        if merged_tags:
+            lines.append("")
+            lines.append("## 标签")
+            lines.append("")
+            for tag in merged_tags:
+                lines.append(f"- `{tag}`")
 
         lines.append("")
         lines.append("---")
         lines.append("")
         lines.append("## 正文")
         lines.append("")
-        lines.append(clean_result.content)
+
+        body = clean_result.content or ""
+        lines.append(body)
 
         with open(cleaned_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(lines))

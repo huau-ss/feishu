@@ -314,8 +314,13 @@ async def upload_document(
         )
 
     suffix = Path(file.filename).suffix.lower()
-    allowed_exts = ['.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt',
-                    '.txt', '.md', '.json', '.yaml', '.yml', '.html', '.htm']
+    allowed_exts = [
+        '.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt',
+        '.txt', '.md', '.json', '.yaml', '.yml', '.html', '.htm',
+        '.xml', '.zip', '.csv', '.rtf',
+        '.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv', '.webm',
+        '.mp3', '.wav', '.m4a', '.flac', '.ogg',
+    ]
     if suffix not in allowed_exts:
         raise HTTPException(
             status_code=400,
@@ -385,6 +390,17 @@ async def upload_documents(
         suffix = Path(file.filename).suffix.lower()
         if file.size and file.size > settings.MAX_FILE_SIZE:
             results.append({"filename": file.filename, "error": "File too large"})
+            continue
+
+        allowed_exts = [
+            '.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt',
+            '.txt', '.md', '.json', '.yaml', '.yml', '.html', '.htm',
+            '.xml', '.zip', '.csv', '.rtf',
+            '.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv', '.webm',
+            '.mp3', '.wav', '.m4a', '.flac', '.ogg',
+        ]
+        if suffix not in allowed_exts:
+            results.append({"filename": file.filename, "error": f"Unsupported file type: {suffix}"})
             continue
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:

@@ -13,6 +13,11 @@ from .document_parser import (
     HTMLParser,
     TXTParser,
     EmailParser,
+    XMLParser,
+    ZIPParser,
+    CSVParser,
+    RTFParser,
+    VideoParser,
 )
 
 __all__ = [
@@ -27,4 +32,9 @@ __all__ = [
     "HTMLParser",
     "TXTParser",
     "EmailParser",
+    "XMLParser",
+    "ZIPParser",
+    "CSVParser",
+    "RTFParser",
+    "VideoParser",
 ]

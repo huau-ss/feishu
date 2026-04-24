@@ -1,6 +1,6 @@
 """
 文档解析器模块
-支持 PDF, Word, Excel, PPT, TXT, HTML 等格式
+支持 PDF, Word, Excel, PPT, TXT, HTML, XML, ZIP, CSV, RTF, 视频音频等格式
 """
 import io
 import logging
@@ -263,6 +263,392 @@ class EmailParser(BaseParser):
         return "\n".join(text_parts)
 
 
+class XMLParser(BaseParser):
+    """XML 文档解析器"""
+
+    @property
+    def supported_extensions(self) -> List[str]:
+        return [".xml"]
+
+    def extract(self, file_path: str | Path) -> str:
+        try:
+            from bs4 import BeautifulSoup
+        except ImportError:
+            raise ImportError("请安装 beautifulsoup4: pip install beautifulsoup4")
+
+        encodings = ["utf-8", "gbk", "gb2312", "gb18030", "latin-1"]
+        raw_content = None
+
+        for encoding in encodings:
+            try:
+                with open(file_path, "r", encoding=encoding) as f:
+                    raw_content = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if raw_content is None:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                raw_content = f.read()
+
+        soup = BeautifulSoup(raw_content, "lxml")
+        text_parts = []
+
+        root = soup.find()
+        if root and root.name:
+            text_parts.append(f"[XML根元素: {root.name}]")
+
+        for elem in soup.find_all(True):
+            tag_name = elem.name
+            if elem.string and elem.string.strip():
+                text_parts.append(f"[{tag_name}] {elem.string.strip()}")
+            else:
+                children = [c for c in elem.children if isinstance(c, str) and c.strip()]
+                if children:
+                    text_parts.append(f"[{tag_name}] {''.join(children).strip()}")
+
+            for attr, value in elem.attrs.items():
+                if isinstance(value, list):
+                    value = ' '.join(str(v) for v in value)
+                if value and str(value).strip():
+                    text_parts.append(f"  @{attr}: {value}")
+
+        return "\n".join(text_parts)
+
+
+class ZIPParser(BaseParser):
+    """ZIP 压缩包解析器 — 解压并递归解析内部文件"""
+
+    @property
+    def supported_extensions(self) -> List[str]:
+        return [".zip"]
+
+    def extract(self, file_path: str | Path) -> str:
+        import zipfile
+        import tempfile
+        import shutil
+
+        text_parts = [f"[ZIP压缩包: {Path(file_path).name}]"]
+        text_parts.append("")
+
+        try:
+            with zipfile.ZipFile(file_path, 'r') as zf:
+                file_list = zf.namelist()
+                text_parts.append(f"包含文件数量: {len(file_list)}")
+                text_parts.append("")
+
+                for entry in file_list:
+                    if entry.endswith('/'):
+                        text_parts.append(f"[目录] {entry}")
+                        continue
+
+                    info = zf.getinfo(entry)
+                    text_parts.append(f"[文件] {entry} ({info.file_size} bytes)")
+                    text_parts.append("")
+
+                    if info.file_size == 0:
+                        continue
+
+                    safe_ext = Path(entry).suffix.lower()
+
+                    if safe_ext in ['.txt', '.md', '.log', '.cfg', '.conf', '.json', '.yaml', '.yml', '.xml', '.html', '.htm']:
+                        try:
+                            raw = zf.read(entry)
+                            for enc in ['utf-8', 'gbk', 'gb2312', 'latin-1']:
+                                try:
+                                    content = raw.decode(enc)
+                                    break
+                                except UnicodeDecodeError:
+                                    continue
+                            else:
+                                content = raw.decode('utf-8', errors='ignore')
+
+                            if safe_ext == '.xml':
+                                from bs4 import BeautifulSoup
+                                soup = BeautifulSoup(content, "lxml")
+                                content = soup.get_text(separator="\n", strip=True)
+
+                            lines = content.split('\n')
+                            snippet = '\n'.join(lines[:100])
+                            if len(lines) > 100:
+                                snippet += f"\n... (共 {len(lines)} 行，内容已截断)"
+                            text_parts.append(snippet)
+                            text_parts.append("")
+                        except Exception as e:
+                            text_parts.append(f"  (解析失败: {e})")
+                            text_parts.append("")
+
+                    elif safe_ext in ['.py', '.js', '.java', '.cpp', '.c', '.go', '.rs', '.sh', '.bat', '.sql']:
+                        try:
+                            raw = zf.read(entry)
+                            for enc in ['utf-8', 'latin-1']:
+                                try:
+                                    content = raw.decode(enc)
+                                    break
+                                except UnicodeDecodeError:
+                                    continue
+                            else:
+                                content = raw.decode('utf-8', errors='ignore')
+
+                            lines = content.split('\n')
+                            snippet = '\n'.join(lines[:50])
+                            if len(lines) > 50:
+                                snippet += f"\n... (共 {len(lines)} 行，代码已截断)"
+                            text_parts.append(f"[代码片段 - {entry}]")
+                            text_parts.append(snippet)
+                            text_parts.append("")
+                        except Exception:
+                            pass
+
+                    elif safe_ext in ['.csv']:
+                        try:
+                            raw = zf.read(entry)
+                            for enc in ['utf-8', 'gbk', 'latin-1']:
+                                try:
+                                    content = raw.decode(enc)
+                                    break
+                                except UnicodeDecodeError:
+                                    continue
+                            else:
+                                content = raw.decode('utf-8', errors='ignore')
+
+                            lines = content.split('\n')
+                            snippet = '\n'.join(lines[:50])
+                            if len(lines) > 50:
+                                snippet += f"\n... (共 {len(lines)} 行，表格已截断)"
+                            text_parts.append(f"[表格 - {entry}]")
+                            text_parts.append(snippet)
+                            text_parts.append("")
+                        except Exception:
+                            pass
+
+                    elif safe_ext in ['.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.rtf']:
+                        text_parts.append(f"  (二进制文件，需专用解析器处理)")
+                        text_parts.append("")
+
+        except zipfile.BadZipFile:
+            logger.warning(f"ZIP文件损坏或格式错误: {file_path}")
+            return f"[错误] 无法解压ZIP文件: {file_path}"
+
+        return "\n".join(text_parts)
+
+
+class CSVParser(BaseParser):
+    """CSV 表格解析器"""
+
+    @property
+    def supported_extensions(self) -> List[str]:
+        return [".csv"]
+
+    def extract(self, file_path: str | Path) -> str:
+        import csv
+
+        encodings = ["utf-8", "gbk", "gb2312", "gb18030", "utf-8-sig", "latin-1"]
+        raw_content = None
+
+        for encoding in encodings:
+            try:
+                with open(file_path, "r", encoding=encoding) as f:
+                    raw_content = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if raw_content is None:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                raw_content = f.read()
+
+        text_parts = []
+        lines = raw_content.split('\n')
+
+        dialect = None
+        try:
+            dialect = csv.Sniffer().sniff(raw_content[:8192])
+        except Exception:
+            pass
+
+        reader = csv.reader(lines, dialect=dialect)
+        headers = next(reader, None)
+
+        if headers:
+            text_parts.append("| " + " | ".join(str(h).strip() for h in headers) + " |")
+            text_parts.append("| " + " | ".join("---" for _ in headers) + " |")
+
+            for i, row in enumerate(reader):
+                if i >= 1000:
+                    text_parts.append(f"\n... (共超过 {i + 1} 行，数据已截断)")
+                    break
+                row_cells = [str(cell).strip() for cell in row]
+                if any(row_cells):
+                    text_parts.append("| " + " | ".join(row_cells) + " |")
+        else:
+            for line in lines[:200]:
+                if line.strip():
+                    cells = next(csv.reader([line]), [])
+                    text_parts.append(" | ".join(c.strip() for c in cells if c.strip()))
+
+        return "\n".join(text_parts)
+
+
+class RTFParser(BaseParser):
+    """RTF 富文本格式解析器"""
+
+    @property
+    def supported_extensions(self) -> List[str]:
+        return [".rtf"]
+
+    def extract(self, file_path: str | Path) -> str:
+        try:
+            import striprtf.striprtf as rtf
+        except ImportError:
+            logger.warning("striprtf 未安装，尝试替代方法解析RTF")
+            return self._extract_fallback(file_path)
+
+        encodings = ["utf-8", "gbk", "gb2312", "latin-1"]
+        raw_content = None
+
+        for encoding in encodings:
+            try:
+                with open(file_path, "r", encoding=encoding) as f:
+                    raw_content = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if raw_content is None:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                raw_content = f.read()
+
+        text = rtf.rtf_to_text(raw_content)
+        return text.strip() if text else ""
+
+    def _extract_fallback(self, file_path: str | Path) -> str:
+        encodings = ["utf-8", "gbk", "gb2312", "latin-1"]
+        for encoding in encodings:
+            try:
+                with open(file_path, "r", encoding=encoding) as f:
+                    raw = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+
+        import re
+        raw = re.sub(r'\\[a-z]+\d*\s?', ' ', raw)
+        raw = re.sub(r'\{|\}', '', raw)
+        raw = re.sub(r"\\'([0-9a-fA-F]{2})", lambda m: chr(int(m.group(1), 16)), raw)
+        raw = re.sub(r'\n+', '\n', raw)
+        return raw.strip()
+
+
+class VideoParser(BaseParser):
+    """视频文件解析器 — 提取音频并通过 Whisper 进行语音转文字"""
+
+    @property
+    def supported_extensions(self) -> List[str]:
+        return [".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv", ".webm", ".mp3", ".wav", ".m4a", ".flac", ".ogg"]
+
+    def extract(self, file_path: str | Path) -> str:
+        import os
+        import tempfile
+
+        video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv', '.webm'}
+        audio_extensions = {'.mp3', '.wav', '.m4a', '.flac', '.ogg'}
+        ext = Path(file_path).suffix.lower()
+
+        text_parts = [f"[视频/音频文件: {Path(file_path).name}]"]
+        text_parts.append("")
+
+        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        text_parts.append(f"文件大小: {file_size_mb:.2f} MB")
+        text_parts.append("")
+
+        try:
+            import subprocess
+            subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            text_parts.append("[警告] FFmpeg 未安装，无法提取音频进行语音转文字。")
+            text_parts.append("请安装 FFmpeg: https://ffmpeg.org/download.html")
+            text_parts.append("Linux/macOS: sudo apt install ffmpeg / brew install ffmpeg")
+            text_parts.append("Windows: 从 https://ffmpeg.org/download.html 下载并添加到 PATH")
+            return "\n".join(text_parts)
+
+        try:
+            import whisper
+        except ImportError:
+            text_parts.append("[警告] OpenAI Whisper 未安装，无法进行语音转文字。")
+            text_parts.append("请安装: pip install openai-whisper")
+            text_parts.append("或安装轻量版: pip install faster-whisper")
+            return "\n".join(text_parts)
+
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_audio:
+            tmp_audio_path = tmp_audio.name
+
+        try:
+            if ext in video_extensions:
+                cmd = [
+                    "ffmpeg", "-i", str(file_path),
+                    "-vn", "-acodec", "pcm_s16le",
+                    "-ar", "16000", "-ac", "1",
+                    "-y", tmp_audio_path
+                ]
+            else:
+                if ext == '.wav':
+                    tmp_audio_path = str(file_path)
+                else:
+                    cmd = [
+                        "ffmpeg", "-i", str(file_path),
+                        "-vn", "-acodec", "pcm_s16le",
+                        "-ar", "16000", "-ac", "1",
+                        "-y", tmp_audio_path
+                    ]
+
+            if ext in video_extensions or ext not in {'.wav'}:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True, text=True, timeout=300
+                )
+                if result.returncode != 0:
+                    text_parts.append(f"[警告] 音频提取失败: {result.stderr[:200]}")
+                    return "\n".join(text_parts)
+
+            try:
+                model_name = "base"
+                model = whisper.load_model(model_name)
+                text_parts.append(f"[Whisper模型: {model_name}]")
+                text_parts.append("")
+
+                result = model.transcribe(tmp_audio_path, language="zh", task="transcribe")
+                segments = result.get("segments", [])
+
+                if not segments:
+                    text_parts.append("[转写结果]")
+                    text_parts.append(result.get("text", "").strip())
+                else:
+                    text_parts.append(f"[转写片段数: {len(segments)}]")
+                    text_parts.append("")
+                    for seg in segments:
+                        start = seg.get("start", 0)
+                        end = seg.get("end", 0)
+                        seg_text = seg.get("text", "").strip()
+                        mins = int(start // 60)
+                        secs = int(start % 60)
+                        text_parts.append(f"[{mins:02d}:{secs:02d} - {int(end//60):02d}:{int(end%60):02d}] {seg_text}")
+
+            except Exception as e:
+                logger.warning(f"Whisper 转写失败: {e}")
+                text_parts.append(f"[警告] 语音转文字失败: {e}")
+                text_parts.append("提示: 可尝试安装 faster-whisper 以提高性能: pip install faster-whisper")
+
+        finally:
+            if tmp_audio_path != str(file_path) and os.path.exists(tmp_audio_path):
+                try:
+                    os.unlink(tmp_audio_path)
+                except Exception:
+                    pass
+
+        return "\n".join(text_parts)
+
+
 class ParserFactory:
     """解析器工厂"""
 
@@ -275,6 +661,11 @@ class ParserFactory:
             HTMLParser(),
             TXTParser(),
             EmailParser(),
+            XMLParser(),
+            ZIPParser(),
+            CSVParser(),
+            RTFParser(),
+            VideoParser(),
         ]
 
     def get_parser(self, file_path: str | Path) -> Optional[BaseParser]:

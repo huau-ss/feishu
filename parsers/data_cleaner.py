@@ -1,10 +1,10 @@
 """
 数据清洗模块
-支持多格式差异化清洗：PDF / TXT / Excel / Word
+支持多格式差异化清洗：PDF / TXT / Excel / Word / CSV / XML / RTF / ZIP / 视频音频
 """
 import re
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from pathlib import Path
 from enum import Enum
@@ -644,6 +644,138 @@ class TableDataCleaner:
 
 
 # ============================================================================
+# CSV 表格清洗器
+# ============================================================================
+
+class CSVDataCleaner:
+    """
+    CSV 文件专用清洗规则：
+
+    - 清理首尾空白字符
+    - 规范化分隔符
+    - 统一单元格格式
+    - 去除重复行
+    """
+
+    def clean(self, text: str) -> Tuple[str, Dict]:
+        """
+        清洗 CSV 文件
+
+        Returns:
+            (清洗后文本, 元数据字典)
+        """
+        metadata: Dict = {}
+        lines = text.split('\n')
+        cleaned_lines = []
+        seen = set()
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+
+            normalized = re.sub(r'\s+', '', line)
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+
+            cells = line.split(',')
+            cleaned_cells = []
+            for cell in cells:
+                cell = cell.strip()
+                cell = re.sub(r'^\s+|\s+$', '', cell)
+                cell = re.sub(r'\s{2,}', ' ', cell)
+                if cell.startswith('"') and cell.endswith('"'):
+                    cell = cell[1:-1]
+                if cell.startswith("'") and cell.endswith("'"):
+                    cell = cell[1:-1]
+                cleaned_cells.append(cell)
+
+            cleaned_lines.append(', '.join(cleaned_cells))
+
+        metadata['row_count'] = len(cleaned_lines)
+        result = '\n'.join(cleaned_lines)
+        return result, metadata
+
+
+# ============================================================================
+# XML 清洗器
+# ============================================================================
+
+class XMLDataCleaner:
+    """
+    XML 文件专用清洗规则：
+
+    - 移除 XML 声明和注释
+    - 规范化标签缩进（转为纯文本）
+    - 清理属性噪声
+    """
+
+    def clean(self, text: str) -> Tuple[str, Dict]:
+        """
+        清洗 XML 文件
+
+        Returns:
+            (清洗后文本, 元数据字典)
+        """
+        metadata: Dict = {}
+
+        lines = text.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            if stripped.startswith('[') and ']' in stripped:
+                continue
+
+            if stripped.startswith('@'):
+                continue
+
+            cleaned_lines.append(stripped)
+
+        result = '\n'.join(cleaned_lines)
+        result = re.sub(r'^\s+|\s+$', '', result, flags=re.MULTILINE)
+        result = re.sub(r'\n{3,}', '\n\n', result)
+
+        metadata['format'] = 'xml'
+        return result, metadata
+
+
+# ============================================================================
+# RTF 清洗器
+# ============================================================================
+
+class RTFDataCleaner:
+    """
+    RTF 文件专用清洗规则：
+
+    - 移除 RTF 控制词
+    - 清理字体和颜色指令
+    - 规范化换行
+    """
+
+    def clean(self, text: str) -> Tuple[str, Dict]:
+        """
+        清洗 RTF 文件
+
+        Returns:
+            (清洗后文本, 元数据字典)
+        """
+        result = text
+
+        result = re.sub(r'\\[a-z]+\d*\s?|\{[^}]*\}', '', result)
+        result = re.sub(r"\\'([0-9a-fA-F]{2})", lambda m: chr(int(m.group(1), 16)), result)
+        result = re.sub(r'\n{3,}', '\n\n', result)
+        result = re.sub(r'^\s+|\s+$', '', result, flags=re.MULTILINE)
+        result = re.sub(r'[ \t]+', ' ', result)
+
+        metadata: Dict = {}
+        return result, metadata
+
+
+# ============================================================================
 # 主数据清洗器
 # ============================================================================
 
@@ -656,6 +788,11 @@ class DataCleaner:
     - TXT   → TXTDataCleaner
     - PDF   → PDFDataCleaner（差异化）
     - Excel / Word → TableDataCleaner
+    - CSV   → CSVDataCleaner
+    - XML   → XMLDataCleaner
+    - RTF   → RTFDataCleaner
+    - ZIP   → 通用清洗（内部文件已由ZIPParser处理）
+    - 视频/音频 → 通用清洗（Whisper转写已清洗）
     - 其他  → 通用清洗
     """
 
@@ -683,6 +820,9 @@ class DataCleaner:
         self.txt_cleaner = TXTDataCleaner()
         self.pdf_cleaner = PDFDataCleaner()
         self.table_cleaner = TableDataCleaner()
+        self.csv_cleaner = CSVDataCleaner()
+        self.xml_cleaner = XMLDataCleaner()
+        self.rtf_cleaner = RTFDataCleaner()
 
     def clean(
         self,
@@ -697,7 +837,7 @@ class DataCleaner:
         Args:
             text: 原始文本
             filename: 文件名（用于提取标题）
-            file_type: 文件类型 (pdf/txt/xlsx/docx/...)
+            file_type: 文件类型 (pdf/txt/xlsx/docx/xml/zip/csv/rtf/mp4/...)
             pdf_type: PDF 类型（从 PDFTypeDetector 检测获得）
 
         Returns:
@@ -718,6 +858,12 @@ class DataCleaner:
         elif file_type_lower in ('xlsx', 'xls', 'csv', 'docx', 'doc'):
             text = self.table_cleaner.clean(text, file_type_lower)
             extracted_meta = {}
+        elif file_type_lower == 'csv':
+            text, extracted_meta = self.csv_cleaner.clean(text)
+        elif file_type_lower == 'xml':
+            text, extracted_meta = self.xml_cleaner.clean(text)
+        elif file_type_lower == 'rtf':
+            text, extracted_meta = self.rtf_cleaner.clean(text)
         elif file_type_lower == 'pdf':
             # 检测 PDF 类型（如果未提供）
             if pdf_type is None:
@@ -725,6 +871,11 @@ class DataCleaner:
                 warnings.append(f"自动检测 PDF 类型: {pdf_type.value}")
             text = self.pdf_cleaner.clean(text, pdf_type)
             extracted_meta = {"pdf_type": pdf_type.value}
+        elif file_type_lower in ('zip', 'mp4', 'avi', 'mov', 'mkv', 'flv', 'wmv', 'webm',
+                                  'mp3', 'wav', 'm4a', 'flac', 'ogg'):
+            # ZIP/视频/音频：Whisper或ZIP解析器已做初步处理，只做通用清洗
+            text = self._generic_clean(text)
+            extracted_meta = {}
         else:
             # 通用清洗
             text = self._generic_clean(text)
