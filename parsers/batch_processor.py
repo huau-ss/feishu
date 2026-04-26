@@ -67,6 +67,14 @@ except ImportError:
         HAINAN_EMBED_BASE_URL = "http://192.168.3.86:6208/v1"
         HAINAN_EMBED_MODEL = "bce-embedding-base_v1"
         HAINAN_EMBED_DIM = 1536
+        OPENROUTER_EMBED_API_KEY = ""
+        OPENROUTER_EMBED_MODEL = "openai/text-embedding-3-small"
+        OPENROUTER_EMBED_DIM = 1536
+        OPENROUTER_RERANK_API_KEY = ""
+        OPENROUTER_RERANK_MODEL = "cohere/rerank-v3.5"
+        HAINAN_RERANK_BASE_URL = "http://192.168.3.86:6006/v1"
+        HAINAN_RERANK_MODEL = "bce-reranker-base_v1"
+        HAINAN_RERANK_API_KEY = ""
     settings = _FallbackSettings()
 
 

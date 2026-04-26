@@ -284,6 +284,13 @@ def create_embedding_model(
             base_url=base_url or "https://api.openai.com/v1",
             dimension=dimension,
         )
+    elif provider == "openrouter":
+        return OpenAIEmbedding(
+            model_name=model_name or "openai/text-embedding-3-small",
+            api_key=api_key,
+            base_url=base_url or "https://openrouter.ai/api/v1",
+            dimension=dimension,
+        )
     elif provider == "dashscope":
         return DashScopeEmbedding(
             model_name=model_name or "text-embedding-v3",
@@ -310,14 +317,38 @@ def get_embedding_model() -> EmbeddingModel:
     global _default_embedding
     if _default_embedding is None:
         from config.settings import settings
-        # 优先使用海纳数聚一体机 BCE Embedding
-        if settings.HAINAN_EMBED_BASE_URL:
-            _default_embedding = BCEEmbedding(
-                model_name=settings.HAINAN_EMBED_MODEL,
-                api_key=settings.HAINAN_EMBED_API_KEY,
-                base_url=settings.HAINAN_EMBED_BASE_URL,
-                dimension=settings.HAINAN_EMBED_DIM,
-            )
+
+        # 优先使用 OpenRouter Embedding，失败则降级到 Hainan，最后降级到本地 Ollama
+        if settings.OPENROUTER_EMBED_BASE_URL and settings.OPENROUTER_EMBED_API_KEY:
+            try:
+                _default_embedding = OpenAIEmbedding(
+                    model_name=settings.OPENROUTER_EMBED_MODEL,
+                    api_key=settings.OPENROUTER_EMBED_API_KEY,
+                    base_url=settings.OPENROUTER_EMBED_BASE_URL,
+                    dimension=settings.OPENROUTER_EMBED_DIM,
+                )
+                _ = _default_embedding.encode("test")
+                logger.info(f"Using OpenRouter Embedding: {settings.OPENROUTER_EMBED_MODEL}")
+            except Exception as e:
+                logger.warning(f"OpenRouter Embedding unreachable ({e}), trying Hainan...")
+                _default_embedding = None
+            if _default_embedding is None and settings.HAINAN_EMBED_BASE_URL:
+                try:
+                    _default_embedding = BCEEmbedding(
+                        model_name=settings.HAINAN_EMBED_MODEL,
+                        api_key=settings.HAINAN_EMBED_API_KEY,
+                        base_url=settings.HAINAN_EMBED_BASE_URL,
+                        dimension=settings.HAINAN_EMBED_DIM,
+                    )
+                    _ = _default_embedding.encode("test")
+                    logger.info(f"Using Hainan BCE Embedding: {settings.HAINAN_EMBED_BASE_URL}")
+                except Exception as e2:
+                    logger.warning(f"Hainan Embedding unreachable ({e2}), falling back to local Ollama")
+                    _default_embedding = OllamaEmbedding(
+                        model_name=settings.OLLAMA_EMBED_MODEL,
+                        base_url=settings.OLLAMA_BASE_URL,
+                        dimension=settings.VECTOR_DIM,
+                    )
         else:
             _default_embedding = OllamaEmbedding(
                 model_name=settings.OLLAMA_EMBED_MODEL,

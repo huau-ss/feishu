@@ -41,17 +41,27 @@ class Settings(BaseSettings):
     HAINAN_RERANK_MODEL: str = "bce-reranker-base_v1"
     HAINAN_RERANK_API_KEY: str = ""
 
+    # ==================== OpenRouter Embedding & Rerank ====================
+    OPENROUTER_EMBED_BASE_URL: str = "https://openrouter.ai/api/v1"
+    OPENROUTER_EMBED_MODEL: str = "openai/text-embedding-3-small"
+    OPENROUTER_EMBED_DIM: int = 1536
+    OPENROUTER_EMBED_API_KEY: str = "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"
+
+    OPENROUTER_RERANK_BASE_URL: str = "https://openrouter.ai/api/v1"
+    OPENROUTER_RERANK_MODEL: str = "cohere/rerank-v3.5"
+    OPENROUTER_RERANK_API_KEY: str = "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"
+
     # ==================== 外部大模型 API ====================
     EXTERNAL_LLM_PROVIDER: Literal["openai", "claude", "dashscope", "none"] = "openai"
-    EXTERNAL_LLM_API_KEY: str = "sk-f5e83e1f3f354048a6232133009b2798"
-    EXTERNAL_LLM_BASE_URL: str = "https://api.deepseek.com/v1"
-    EXTERNAL_LLM_MODEL: str = "deepseek-chat"
+    EXTERNAL_LLM_API_KEY: str = "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"
+    EXTERNAL_LLM_BASE_URL: str = "https://openrouter.ai/api/v1/chat/completions"
+    EXTERNAL_LLM_MODEL: str = "deepseek/deepseek-v4-flash"
 
     # DashScope (阿里云通义千问)
     DASHSCOPE_API_KEY: str = ""
 
     # ==================== RAG 参数 ====================
-    VECTOR_DIM: int = 768                                # BCE embedding 向量维度(768)
+    VECTOR_DIM: int = 1536                              # OpenRouter embedding 向量维度(1536)
     TOP_K: int = 20                                     # 粗排召回数量
     RERANK_TOP_K: int = 10                              # 精排后返回数量
     RERANK_THRESHOLD: float = 0.5                       # 重排得分阈值（防幻觉）

@@ -516,7 +516,7 @@ def render_sessions_tab():
         with st.expander(f"{user_display} · {msg_count} 条消息 · {updated}"):
             try:
                 resp = requests.get(
-                    f"{API_BASE_URL}/sessions/{session['id']}/messages",
+                    f"{API_BASE_URL}/admin/feishu/sessions/{session['id']}/messages",
                     timeout=10,
                 )
                 if resp.status_code == 200:

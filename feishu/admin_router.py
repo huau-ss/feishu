@@ -201,6 +201,37 @@ async def list_feishu_sessions(limit: int = Query(50, le=200)):
         return {"sessions": sessions}
 
 
+@router.get("/feishu/sessions/{session_id}/messages")
+async def get_feishu_session_messages(
+    session_id: str,
+    limit: int = Query(50, le=100),
+):
+    """获取指定飞书会话的消息列表"""
+    from database import MessageModel
+    from sqlalchemy import select
+
+    with get_db_session() as session:
+        stmt = (
+            select(MessageModel)
+            .where(MessageModel.session_id == session_id)
+            .order_by(MessageModel.timestamp.asc())
+            .limit(limit)
+        )
+        messages = session.execute(stmt).scalars().all()
+        return {
+            "messages": [
+                {
+                    "id": m.id,
+                    "role": m.role,
+                    "content": m.content,
+                    "timestamp": m.timestamp,
+                    "metadata": m.metadata_json,
+                }
+                for m in messages
+            ]
+        }
+
+
 # ==================== Obsidian 个人知识库 API ====================
 
 @router.get("/employees/{employee_id}/vaults")

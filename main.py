@@ -63,7 +63,7 @@ def main():
     args = parser.parse_args()
 
     if args.feishu_admin:
-        run_feishu_admin(host=args.host, port=args.port)
+        run_feishu_admin(host=args.host, port=8502)
     elif args.demo:
         run_demo()
     elif args.api:

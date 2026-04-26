@@ -46,8 +46,16 @@ async def lifespan(app: FastAPI):
 
     from config.settings import settings
 
-    # 优先使用海纳数聚 AI 一体机
-    if settings.HAINAN_LLM_BASE_URL:
+    # 设置主 LLM（优先 OpenRouter，Hainan/Ollama 降级）
+    if settings.EXTERNAL_LLM_API_KEY and settings.EXTERNAL_LLM_PROVIDER not in ("none", ""):
+        llm_client = create_llm_client(
+            provider=settings.EXTERNAL_LLM_PROVIDER,
+            model=settings.EXTERNAL_LLM_MODEL,
+            api_key=settings.EXTERNAL_LLM_API_KEY,
+            base_url=settings.EXTERNAL_LLM_BASE_URL,
+        )
+        logger.info(f"Using OpenRouter LLM: {settings.EXTERNAL_LLM_MODEL} @ {settings.EXTERNAL_LLM_BASE_URL}")
+    elif settings.HAINAN_LLM_BASE_URL:
         llm_client = create_llm_client(
             provider="openai",
             model=settings.HAINAN_LLM_MODEL,
@@ -64,17 +72,17 @@ async def lifespan(app: FastAPI):
         logger.info(f"Using Ollama LLM: {settings.OLLAMA_MODEL} @ {settings.OLLAMA_BASE_URL}")
     rag_engine.set_llm_client(llm_client)
 
-    # 初始化外部大模型客户端（公网兜底）
-    # 优先使用外部 API 配置，其次使用海纳一体机
-    external_llm = None
-    if settings.EXTERNAL_LLM_API_KEY and settings.EXTERNAL_LLM_PROVIDER != "none":
+    # 设置 external_llm_client（知识库无结果时的兜底 LLM）
+    # 始终使用 OpenRouter 作为兜底（Hainan/Ollama 作为二级降级）
+    if settings.EXTERNAL_LLM_API_KEY and settings.EXTERNAL_LLM_PROVIDER not in ("none", ""):
+        # external_llm 也用 OpenRouter（因为 Hainan 已不可用）
         external_llm = create_llm_client(
             provider=settings.EXTERNAL_LLM_PROVIDER,
             model=settings.EXTERNAL_LLM_MODEL,
             api_key=settings.EXTERNAL_LLM_API_KEY,
             base_url=settings.EXTERNAL_LLM_BASE_URL,
         )
-        logger.info(f"External LLM (External API): {settings.EXTERNAL_LLM_MODEL} @ {settings.EXTERNAL_LLM_BASE_URL}")
+        logger.info(f"External LLM also using OpenRouter: {settings.EXTERNAL_LLM_MODEL}")
     elif settings.HAINAN_LLM_BASE_URL:
         external_llm = create_llm_client(
             provider="openai",
@@ -83,11 +91,15 @@ async def lifespan(app: FastAPI):
             base_url=settings.HAINAN_LLM_BASE_URL,
         )
         logger.info(f"External LLM (Hainan): {settings.HAINAN_LLM_MODEL} @ {settings.HAINAN_LLM_BASE_URL}")
-
-    if external_llm:
-        rag_engine.set_external_llm_client(external_llm)
     else:
-        logger.info("External LLM not configured, will only use primary LLM")
+        external_llm = create_llm_client(
+            provider="ollama",
+            model=settings.OLLAMA_MODEL,
+            base_url=settings.OLLAMA_BASE_URL,
+        )
+        logger.info(f"External LLM (Ollama): {settings.OLLAMA_MODEL} @ {settings.OLLAMA_BASE_URL}")
+
+    rag_engine.set_external_llm_client(external_llm)
 
     history_manager = get_history_manager()
 
@@ -257,6 +269,7 @@ async def query_stream(request: QueryRequest):
 
             full_response = []
             answer_source = ""
+            token_count = 0
             for token, result in rag_engine.query_stream(
                 question=request.question,
                 use_knowledge_base=request.use_knowledge_base,
@@ -265,6 +278,7 @@ async def query_stream(request: QueryRequest):
             ):
                 full_response.append(token)
                 answer_source = getattr(result, "answer_source", "")
+                token_count += 1
                 q.put(("token", token, False))
 
             if request.session_id and history_manager:
@@ -274,6 +288,7 @@ async def query_stream(request: QueryRequest):
                     content="".join(full_response),
                 )
 
+            logger.info(f"Stream complete: tokens={token_count}, source={answer_source}")
             q.put(("done", answer_source, True))
         except Exception as e:
             logger.error(f"Stream query failed: {e}")
@@ -289,7 +304,7 @@ async def query_stream(request: QueryRequest):
             if kind == "error":
                 yield f"data: {json.dumps({'error': data, 'done': True})}\n\n"
                 break
-            yield f"data: {json.dumps({'token': data, 'done': done, 'answer_source': done and data or ''})}\n\n"
+            yield f"data: {json.dumps({'token': data if not done else '', 'done': done, 'answer_source': data if done else ''})}\n\n"
             if done:
                 break
 

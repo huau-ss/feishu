@@ -314,6 +314,7 @@ class OpenAIClient(BaseLLMClient):
         }
         payload.update(kwargs)
 
+        token_count = 0
         with self.client.stream(
             "POST",
             f"{self.base_url}/chat/completions",
@@ -329,9 +330,11 @@ class OpenAIClient(BaseLLMClient):
                         data = json.loads(data_str)
                         content = data["choices"][0]["delta"].get("content", "")
                         if content:
+                            token_count += 1
                             yield content
                     except json.JSONDecodeError:
                         continue
+        logger.info(f"OpenAI stream complete, yielded {token_count} tokens")
 
 
 class ClaudeClient(BaseLLMClient):

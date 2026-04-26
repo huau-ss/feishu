@@ -526,6 +526,7 @@ def render_upload_tab():
                         # 轮询任务状态
                         progress_bar = st.progress(0)
                         status_text = st.empty()
+                        result = None
                         while True:
                             time.sleep(2)
                             try:
@@ -546,24 +547,24 @@ def render_upload_tab():
                             except Exception:
                                 pass
 
-                            if progress_bar.container:
-                                current = result.get("success", 0) + result.get("failed", 0) if "result" in dir() else 0
+                            if progress_bar.container and result:
+                                current = result.get("success", 0) + result.get("failed", 0)
                                 total = result.get("total", max_files or 100)
                                 progress_bar.progress(min(current / max(total, 1), 1.0))
 
                         progress_bar.empty()
                         status_text.empty()
 
-                        if result.get("status") == "completed":
+                        if result and result.get("status") == "completed":
                             st.success(f"✅ 处理完成！成功: {result['success']}, 失败: {result['failed']}")
-                            st.rerun()  # 自动刷新页面显示最新文档列表
+                            st.rerun()
                             with st.expander("查看详情"):
                                 for r in result.get("results", []):
                                     if "error" in r:
                                         st.error(f"❌ {r.get('file', '未知')}: {r['error']}")
                                     else:
                                         st.success(f"✅ {r.get('title', '未知')}")
-                        elif result.get("status") == "failed":
+                        elif result and result.get("status") == "failed":
                             st.error(f"处理失败: {result.get('error', '未知错误')}")
                 except Exception as e:
                     st.error(f"请求失败: {e}")

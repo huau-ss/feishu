@@ -14,7 +14,7 @@ from pathlib import Path
 
 from sqlalchemy import select, and_, or_
 
-from database import get_db_session
+from database import get_db_session, get_engine, Base
 from database import ObsidianVaultModel, PersonalKnowledgeGraphModel, KnowledgeRelationModel
 from database import PersonalNoteModel, PersonalMemoryModel
 
@@ -582,7 +582,6 @@ class PersonalMemoryManager:
 def init_obsidian_tables():
     """初始化 Obsidian 相关表"""
     try:
-        from database import get_engine
         engine = get_engine()
         Base.metadata.create_all(bind=engine, tables=[
             ObsidianVaultModel.__table__,

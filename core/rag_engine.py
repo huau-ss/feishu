@@ -610,7 +610,7 @@ class RAGEngine:
             RAGResult: 查询结果
         """
         start_time = time.time()
-        result = RAGResult(query=question)
+        result = RAGResult(answer="", query=question)
 
         if not self.llm_client:
             raise ValueError("LLM client not set. Call set_llm_client() first.")
@@ -882,8 +882,10 @@ class RAGEngine:
         active_llm = self._get_active_llm_client(
             use_external=(result.answer_source == "external_llm")
         )
+        logger.info(f"Active LLM model: {active_llm.model}, base_url: {getattr(active_llm, 'base_url', 'N/A')}")
 
         full_response = []
+        logger.info("Starting LLM stream...")
 
         for token in active_llm.stream(
             messages=messages,
@@ -896,6 +898,8 @@ class RAGEngine:
             result.latency_ms = (time.time() - start_time) * 1000
             result.model = active_llm.model
             yield token, result
+
+        logger.info(f"LLM stream finished, total tokens: {len(full_response)}")
 
         # 流结束后补充 sources
         if retrieved_chunks:

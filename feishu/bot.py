@@ -723,18 +723,60 @@ class FeishuBot:
 
         messages = [ChatMessage(role="system", content=personalized_system)]
 
+        # 智能判断：是否需要参考对话历史
+        def should_include_history(question: str, history: list) -> bool:
+            if not history:
+                return False
+
+            # 检测是否包含指代词（需要参考前文才能理解）
+            pronouns = ["这", "那", "它", "他们", "这些", "那些", "此", "该"]
+            for p in pronouns:
+                if p in question:
+                    return True
+
+            # 检测是否包含延续性词汇
+            continuations = ["刚才", "之前", "上面", "刚才说的", "之前提到的", "接着", "还有"]
+            for c in continuations:
+                if c in question:
+                    return True
+
+            # 检测是否是追问（短句且以问号结尾）
+            if len(question) < 20 and "？" in question:
+                return True
+
+            # 检测是否与最近问题相似（避免重复问同样的问题）
+            if history:
+                last_user_msg = None
+                for h in reversed(history):
+                    if h.get("role") == "user":
+                        last_user_msg = h.get("content", "")
+                        break
+                if last_user_msg:
+                    # 计算相似度（简单字符重叠检查）
+                    common_chars = set(question) & set(last_user_msg)
+                    similarity = len(common_chars) / max(len(set(question)), 1)
+                    # 如果相似度很低，说明是新的独立问题
+                    if similarity < 0.3:
+                        return False
+
+            return False
+
         # 读取对话历史
         if session_id:
             history = self.session_manager.get_history(session_id)
-            for hist in history[-10:]:
-                if hist["role"] == "user":
-                    messages.append(ChatMessage(role="user", content=hist["content"]))
-                elif hist["role"] == "assistant":
-                    messages.append(ChatMessage(role="assistant", content=hist["content"]))
+            if should_include_history(question, history):
+                for hist in history[-4:]:  # 最多保留最近2轮对话
+                    if hist["role"] == "user":
+                        messages.append(ChatMessage(role="user", content=hist["content"]))
+                    elif hist["role"] == "assistant":
+                        messages.append(ChatMessage(role="assistant", content=hist["content"]))
+                logger.info(f"Including {len(history[-4:])} historical messages in context")
+            else:
+                logger.info("Skipping history - this appears to be an independent question")
 
-        # 决策：知识库（共享KB 或 个人KB）有内容 → 本地 LLM；都没有 → 公网 LLM
-        shared_has_content = bool(all_parents)
-        from_kb = shared_has_content or personal_has_content
+        # 决策：知识库有检索结果 → 本地 LLM；知识库为空 → 公网大模型
+        # 简单判断：只要检索到共享知识库或个人知识库内容，就用知识库
+        from_kb = bool(all_parents) or personal_has_content
 
         if from_kb:
             # 知识库有结果：添加上下文，使用本地 LLM
@@ -744,13 +786,9 @@ class FeishuBot:
             if personal_context:
                 context_parts.append(f"## 个人知识\n{personal_context}")
 
-            messages.append(
-                ChatMessage(
-                    role="user",
-                    content="【参考资料】\n" + "\n\n".join(context_parts) + "\n\n请根据以上参考资料，结合上下文对话历史回答问题。",
-                )
-            )
-            messages.append(ChatMessage(role="user", content=question))
+            # 合并上下文和新问题为一个 user 消息
+            full_question = "【参考资料】\n" + "\n\n".join(context_parts) + "\n\n请根据以上参考资料，结合上下文对话历史回答问题。\n\n当前问题：" + question
+            messages.append(ChatMessage(role="user", content=full_question))
 
             active_llm = self.rag_engine.llm_client
             if not active_llm:
@@ -767,7 +805,7 @@ class FeishuBot:
             )
             answer_source = "knowledge_base"
         else:
-            # 知识库没有结果：公网大模型兜底
+            # 知识库没有结果：使用公网大模型回答，但需要遵守 skill 的约束
             messages.append(ChatMessage(role="user", content=question))
 
             external_llm = self.rag_engine.external_llm_client
@@ -778,13 +816,25 @@ class FeishuBot:
                     query=question,
                 )
 
+            # 使用与本地 LLM 相同的 system prompt（包含 skill 约束）
+            external_messages = [ChatMessage(role="system", content=personalized_system)]
+            external_messages.append(ChatMessage(role="user", content=question))
+
+            # 如果需要历史上下文，也传给公网大模型
+            if should_include_history(question, history) and session_id:
+                for hist in history[-4:]:
+                    if hist["role"] == "user":
+                        external_messages.insert(-1, ChatMessage(role="user", content=hist["content"]))
+                    elif hist["role"] == "assistant":
+                        external_messages.insert(-1, ChatMessage(role="assistant", content=hist["content"]))
+
             response = external_llm.chat(
-                messages=messages,
+                messages=external_messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
             answer_source = "external_llm"
-            logger.info("KB empty, falling back to external LLM")
+            logger.info("KB empty, falling back to external LLM with skill constraints")
 
         sources = [
             {

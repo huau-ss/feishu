@@ -108,8 +108,8 @@ python main.py
 # 方式三：只启动 Web UI
 python main.py --ui
 
-# 方式四：快速演示模式
-python main.py --demo
+# 方式四：启动飞书管理后台
+python main.py --feishu-admin
 ```
 
 默认端口：

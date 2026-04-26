@@ -249,7 +249,6 @@ class BCEReranker(RerankerModel):
         if len(documents) == 1:
             return [(0, 1.0)]
 
-        # Cohere 兼容格式
         payload = {
             "model": self.model_name,
             "query": query,
@@ -265,15 +264,12 @@ class BCEReranker(RerankerModel):
             )
             response.raise_for_status()
             result = response.json()
-
-            # Cohere 格式: {"results": [{"index": 0, "relevance_score": 0.95}]}
             results = result.get("results", [])
             return [(item["index"], item["relevance_score"]) for item in results]
 
         except Exception as e:
             logger.warning(f"BCE Reranker /rerank failed: {e}, trying /v1/chat/completions fallback...")
 
-        # Fallback: 尝试用 LLM 风格的 rerank 端点
         try:
             payload = {
                 "model": self.model_name,
@@ -295,6 +291,74 @@ class BCEReranker(RerankerModel):
             return SimpleReranker().rerank(query, documents, top_k)
 
 
+class OpenRouterReranker(RerankerModel):
+    """
+    OpenRouter Reranker (通过 OpenRouter API 调用 Cohere Rerank)
+    端点: POST https://openrouter.ai/api/v1/rerank
+    """
+
+    def __init__(
+        self,
+        base_url: str = "https://openrouter.ai/api/v1",
+        model_name: str = "cohere/rerank-v3.5",
+        api_key: str = "",
+    ):
+        self.base_url = base_url.rstrip('/')
+        self.model_name = model_name
+        self.api_key = api_key
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            import httpx
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+            self._client = httpx.Client(headers=headers, trust_env=False, timeout=120.0)
+        return self._client
+
+    def rerank(
+        self,
+        query: str,
+        documents: List[str],
+        top_k: int = 10,
+    ) -> List[Tuple[int, float]]:
+        """通过 OpenRouter Rerank API 重排序"""
+        if not documents:
+            return []
+
+        if len(documents) == 1:
+            return [(0, 1.0)]
+
+        payload = {
+            "model": self.model_name,
+            "query": query,
+            "documents": documents,
+            "top_n": top_k,
+            "return_documents": False,
+        }
+
+        try:
+            response = self.client.post(
+                f"{self.base_url}/rerank",
+                json=payload,
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            results = result.get("results", [])
+            if not results:
+                results = result.get("data", [])
+
+            return [(item["index"], item["relevance_score"]) for item in results]
+
+        except Exception as e:
+            logger.error(f"OpenRouter Reranker failed: {e}")
+            return SimpleReranker().rerank(query, documents, top_k)
+
+
 def create_reranker(
     provider: str = "local",
     model_name: str = "BAAI/bge-reranker-base",
@@ -306,7 +370,7 @@ def create_reranker(
     创建 Reranker 实例
 
     Args:
-        provider: 提供商 (local/remote/simple)
+        provider: 提供商 (local/remote/simple/openrouter/bce)
         model_name: 模型名称
         device: 设备
         base_url: API 地址
@@ -321,6 +385,18 @@ def create_reranker(
         return RemoteReranker(base_url=base_url, model_name=model_name, api_key=api_key)
     elif provider == "simple":
         return SimpleReranker()
+    elif provider == "openrouter":
+        return OpenRouterReranker(
+            base_url=base_url or "https://openrouter.ai/api/v1",
+            model_name=model_name or "cohere/rerank-v3.5",
+            api_key=api_key,
+        )
+    elif provider == "bce":
+        return BCEReranker(
+            base_url=base_url or "http://192.168.3.86:6006/v1",
+            model_name=model_name or "bce-reranker-base_v1",
+            api_key=api_key,
+        )
     else:
         raise ValueError(f"Unknown provider: {provider}")
 
@@ -334,15 +410,42 @@ def get_reranker() -> RerankerModel:
     global _default_reranker
     if _default_reranker is None:
         from config.settings import settings
-        # 优先使用海纳数聚一体机 BCE Reranker
-        if settings.HAINAN_RERANK_BASE_URL:
-            _default_reranker = BCEReranker(
-                base_url=settings.HAINAN_RERANK_BASE_URL,
-                model_name=settings.HAINAN_RERANK_MODEL,
-                api_key=settings.HAINAN_RERANK_API_KEY,
-            )
-        else:
-            _default_reranker = BGEReranker(model_name="BAAI/bge-reranker-base", device="cpu")
+        # 优先使用 OpenRouter Rerank，失败则降级到 Hainan BCE Reranker，最后降级到本地 BGE
+        if settings.OPENROUTER_RERANK_API_KEY:
+            try:
+                _default_reranker = OpenRouterReranker(
+                    base_url=settings.OPENROUTER_RERANK_BASE_URL,
+                    model_name=settings.OPENROUTER_RERANK_MODEL,
+                    api_key=settings.OPENROUTER_RERANK_API_KEY,
+                )
+                # 测试连接
+                _ = _default_reranker.rerank("test", ["test doc"], top_k=1)
+                logger.info(f"Using OpenRouter Reranker: {settings.OPENROUTER_RERANK_MODEL}")
+            except Exception as e:
+                logger.warning(f"OpenRouter Reranker unreachable ({e}), trying Hainan...")
+                _default_reranker = None
+
+        if _default_reranker is None and settings.HAINAN_RERANK_BASE_URL:
+            try:
+                _default_reranker = BCEReranker(
+                    base_url=settings.HAINAN_RERANK_BASE_URL,
+                    model_name=settings.HAINAN_RERANK_MODEL,
+                    api_key=settings.HAINAN_RERANK_API_KEY,
+                )
+                _ = _default_reranker.rerank("test", ["test doc"], top_k=1)
+                logger.info(f"Using Hainan BCE Reranker: {settings.HAINAN_RERANK_BASE_URL}")
+            except Exception as e:
+                logger.warning(f"Hainan Reranker unreachable ({e}), falling back to local BGE Reranker")
+                _default_reranker = None
+
+        if _default_reranker is None:
+            try:
+                _default_reranker = BGEReranker(model_name="BAAI/bge-reranker-base", device="cpu")
+                _ = _default_reranker.rerank("test", ["test doc"], top_k=1)
+                logger.info("Using local BGE Reranker")
+            except Exception:
+                logger.warning("BGE Reranker unavailable, using SimpleReranker")
+                _default_reranker = SimpleReranker()
     return _default_reranker
 
 
