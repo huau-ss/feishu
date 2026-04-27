@@ -23,28 +23,18 @@ faster-whisper>=1.0.0  # 视频/音频语音转文字（FFmpeg 配合 Whisper）
 
 # 向量数据库
 qdrant-client>=1.7.0  # Qdrant
-chromadb>=0.4.22      # ChromaDB (可选)
 
 # Embedding & Reranker
 FlagEmbedding>=1.2.10  # BGE Reranker
 
-# 外部大模型 (可选)
-# anthropic>=0.18.0   # Claude
-# openai>=1.10.0       # OpenAI
 
 # MySQL 数据库
 pymysql>=1.1.0
 sqlalchemy>=2.0.0
-
-# Redis (可选，用于 Celery)
-redis>=5.0.0
-celery>=5.3.0
 
 # 工具
 python-multipart>=0.0.6
 aiofiles>=23.0.0
 
 # 开发工具
-pytest>=7.4.0
-pytest-asyncio>=0.23.0
 tiktoken>=0.7.0
