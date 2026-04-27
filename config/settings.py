@@ -45,15 +45,15 @@ class Settings(BaseSettings):
     OPENROUTER_EMBED_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENROUTER_EMBED_MODEL: str = "openai/text-embedding-3-small"
     OPENROUTER_EMBED_DIM: int = 1536
-    OPENROUTER_EMBED_API_KEY: str = "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"
+    OPENROUTER_EMBED_API_KEY: str = "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"
 
     OPENROUTER_RERANK_BASE_URL: str = "https://openrouter.ai/api/v1"
     OPENROUTER_RERANK_MODEL: str = "cohere/rerank-v3.5"
-    OPENROUTER_RERANK_API_KEY: str = "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"
+    OPENROUTER_RERANK_API_KEY: str = "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"
 
     # ==================== 外部大模型 API ====================
     EXTERNAL_LLM_PROVIDER: Literal["openai", "claude", "dashscope", "none"] = "openai"
-    EXTERNAL_LLM_API_KEY: str = "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"
+    EXTERNAL_LLM_API_KEY: str = "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"
     EXTERNAL_LLM_BASE_URL: str = "https://openrouter.ai/api/v1/chat/completions"
     EXTERNAL_LLM_MODEL: str = "deepseek/deepseek-v4-flash"
 
@@ -101,8 +101,8 @@ class Settings(BaseSettings):
     MYSQL_CHARSET: str = "utf8mb4"
 
     # ==================== 飞书 Bot 配置 ====================
-    FEISHU_APP_ID: str = "cli_a96db55728e45cc4"
-    FEISHU_APP_SECRET: str = "DNfJyNRIDPyUj1y6Tw2zRdsToVncETpa"
+    FEISHU_APP_ID: str = "cli_a9645205e638dbd9"
+    FEISHU_APP_SECRET: str = "O7lUDe9FZoI8kVJTYWkkqldvvMD7iGna"
     FEISHU_VERIFICATION_TOKEN: str = ""
     FEISHU_WEBHOOK_PATH: str = "/feishu/webhook"
     FEISHU_ENABLE_STREAMING: bool = False
